@@ -1,0 +1,1489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tap Sprint</title>
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
+<style>
+/* Layout: one-screen instrument. Wordmark, a ruler-style round picker, a drum-head tap pad that takes all spare height, and a dock with your best and the leaderboard. System fonts only. */
+:root {
+  --bg: #E8ECF5;
+  --surface: #F6F8FD;
+  --ink: #0F1530;
+  --muted: #59627F;
+  --line: #C5CCE0;
+  --accent: #2A3DF0;
+  --accent-text: #2A3DF0;
+  --signal: #FF5A2B;
+  --on-signal: #0F1530;
+  --on-accent: #FFFFFF;
+  --on-accent-dim: rgba(255, 255, 255, 0.2);
+  --ring: rgba(255, 255, 255, 0.13);
+  --bad: #B3261E;
+  --f-display: Bahnschrift, "DIN Alternate", "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --f-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A0F22;
+    --surface: #121932;
+    --ink: #E9EDFB;
+    --muted: #9AA3C6;
+    --line: #252E52;
+    --accent: #4A5BFF;
+    --accent-text: #A3AEFF;
+    --signal: #FF7A52;
+    --bad: #FF8A80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A0F22;
+  --surface: #121932;
+  --ink: #E9EDFB;
+  --muted: #9AA3C6;
+  --line: #252E52;
+  --accent: #4A5BFF;
+  --accent-text: #A3AEFF;
+  --signal: #FF7A52;
+  --bad: #FF8A80;
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.4;
+  padding-inline: 16px;
+  padding-block: 12px;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+:focus-visible { outline: 3px solid var(--signal); outline-offset: 2px; }
+
+.app {
+  height: 100%;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.top, .modes, .custom, .dock { flex: none; }
+.top { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; }
+.brand {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cap {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mode {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  min-width: 0;
+  min-height: 58px;
+  padding: 6px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+}
+.mode + .mode { border-left: 1px solid var(--line); }
+.mode .n { font-family: var(--f-display); font-weight: 700; font-size: 26px; line-height: 1; }
+.mode .n.long { font-size: 20px; }
+.mode .u {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.mode[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.mode[aria-pressed="true"] .u { color: inherit; opacity: 0.75; }
+.mode:disabled { cursor: not-allowed; }
+.mode:disabled:not([aria-pressed="true"]) { opacity: 0.4; }
+
+.custom { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 10px; }
+.custom label {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.custom input, .nameform input {
+  min-width: 0;
+  font-family: var(--f-body);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.custom input { width: 96px; font-variant-numeric: tabular-nums; }
+.custom input[aria-invalid="true"] { border-color: var(--bad); }
+.customhint { font-size: 12px; color: var(--muted); }
+.customhint.bad { color: var(--bad); }
+
+.stage { flex: 1 1 auto; min-height: 220px; position: relative; }
+.pad, .result, .board { position: absolute; inset: 0; border-radius: 14px; }
+
+.pad {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px 18px 28px;
+  overflow: hidden;
+  background-color: var(--accent);
+  background-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 54px, var(--ring) 54px 56px);
+  color: var(--on-accent);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.pad-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; }
+.tag {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+.clock { display: flex; align-items: baseline; gap: 6px; }
+.time {
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: clamp(40px, 12vw, 64px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.sec {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+.mid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.count {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(96px, min(40vw, 30vh), 260px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.unit {
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+.pad-bottom { text-align: center; min-height: 3.4em; pointer-events: none; }
+.hint {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.hint2 { margin-top: 4px; font-size: 12px; opacity: 0.9; text-wrap: balance; }
+.pad.live .pad-bottom { visibility: hidden; }
+.pad.done .hint { font-size: 22px; letter-spacing: 0.16em; }
+
+.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: var(--on-accent-dim); pointer-events: none; }
+.bar i { display: block; height: 100%; background: var(--signal); transform-origin: left center; transform: scaleX(1); }
+
+.ripple {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid var(--on-accent);
+  border-radius: 50%;
+  opacity: 0.7;
+  pointer-events: none;
+  animation: rip 0.5s ease-out forwards;
+}
+@keyframes rip { to { transform: scale(7); opacity: 0; } }
+
+.result, .board {
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.result { padding: 20px; gap: 14px; }
+.res-head { display: flex; align-items: center; gap: 10px; min-height: 26px; }
+.rank {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.badge {
+  background: var(--signal);
+  color: var(--on-signal);
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.res-main { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.cps {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(72px, 24vw, 132px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+.cps-unit { font-family: var(--f-mono); font-weight: 700; font-size: 18px; letter-spacing: 0.14em; color: var(--muted); }
+.summary { margin: 0; font-size: 18px; font-weight: 600; }
+.note { margin: 0; color: var(--muted); font-size: 14px; }
+.lbline { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; color: var(--muted); }
+.linkbtn {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: underline;
+  min-height: 32px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.chart { margin-top: auto; }
+.chartcap {
+  margin: 0 0 6px;
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.hist {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 10), 1fr);
+  gap: 4px;
+  height: 92px;
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+}
+.col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 3px; min-width: 0; }
+.col b { font-family: var(--f-mono); font-weight: 600; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.col i { display: block; width: 100%; height: calc(2px + var(--p, 0) * 58px); background: var(--accent); border-radius: 2px 2px 0 0; }
+.col.peak i { background: var(--signal); }
+.axis { display: flex; justify-content: space-between; margin-top: 4px; font-family: var(--f-mono); font-weight: 600; font-size: 11px; color: var(--muted); }
+
+.btn {
+  appearance: none;
+  border: 0;
+  background: var(--ink);
+  color: var(--bg);
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  min-height: 56px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.btn.small { min-height: 44px; padding: 8px 16px; font-size: 14px; }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.dock { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; }
+.bestline {
+  min-width: 0;
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.ghost {
+  flex: none;
+  appearance: none;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--f-display);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  min-height: 40px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ghost:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.board { padding: 14px; gap: 10px; }
+.board-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.board h2 {
+  margin: 0;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+.tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 14px;
+  min-height: 40px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.tab + .tab { border-left: 1px solid var(--line); }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.mtabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; flex: none; }
+.mtab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  min-height: 38px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.mtab + .mtab { border-left: 1px solid var(--line); }
+.mtab[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.boardmsg { margin: 4px 0; color: var(--muted); font-size: 14px; }
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: baseline;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line);
+}
+.rows button.nm {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  padding: 4px 0;
+  margin: -4px 0;
+  cursor: pointer;
+}
+.rows .sub { grid-column: 2 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.rows .sub[hidden] { display: none; }
+.mt, .methodtag {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.methodtag { font-size: 12px; padding: 3px 8px; margin-left: 4px; vertical-align: 2px; white-space: nowrap; }
+.rep {
+  appearance: none;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 12px;
+  text-decoration: underline;
+  min-height: 28px;
+  padding: 2px 0;
+  cursor: pointer;
+}
+.rep:disabled { color: var(--muted); text-decoration: none; cursor: default; }
+.rows .rk { font-family: var(--f-mono); font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rows .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.rows .sc { font-family: var(--f-display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+.rows .tp { min-width: 64px; text-align: right; font-family: var(--f-mono); font-weight: 500; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rows li.mine { background: var(--bg); }
+.rows li.mine .nm { color: var(--accent-text); }
+.meline { margin: 0; font-size: 13px; color: var(--muted); }
+.meline.bad { color: var(--bad); }
+.nameform { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; }
+.nameform label {
+  width: 100%;
+  font-family: var(--f-mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.nameform input { flex: 1 1 140px; }
+.namemsg { width: 100%; min-height: 1.2em; font-size: 12px; color: var(--muted); }
+.namemsg.bad { color: var(--bad); }
+
+/* Short screens: tighten the result card so it fits without inner scrolling. */
+@media (max-height: 700px) {
+  .result { padding: 14px; gap: 10px; }
+  .cps { font-size: clamp(56px, 18vw, 88px); }
+  .hist { height: 74px; }
+  .col i { height: calc(2px + var(--p, 0) * 40px); }
+  .btn { min-height: 48px; }
+  .summary { font-size: 16px; }
+}
+@media (max-height: 600px) {
+  .result { padding: 12px; gap: 8px; }
+  .cps { font-size: clamp(48px, 15vw, 72px); }
+  .note { display: none; }
+  .hist { height: 62px; }
+  .col i { height: calc(2px + var(--p, 0) * 30px); }
+  .chartcap { margin-bottom: 4px; }
+}
+/* Very short screens (landscape phones): drop the header and give the pad the room. */
+@media (max-height: 560px) {
+  .top { display: none; }
+  .mode { min-height: 44px; flex-direction: row; gap: 4px; }
+  .mode .n { font-size: 20px; }
+  .mode .n.long { font-size: 16px; }
+  .stage { min-height: 150px; }
+  .pad { padding: 12px 14px 22px; }
+  .time { font-size: clamp(32px, 9vw, 48px); }
+  .count { font-size: clamp(72px, min(40vw, 34vh), 200px); }
+  .btn { min-height: 40px; }
+  .lbline { font-size: 12px; }
+}
+@media (max-height: 560px) and (min-aspect-ratio: 1/1) {
+  .result { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto auto 1fr; column-gap: 20px; row-gap: 6px; }
+  .res-head { grid-area: 1 / 1; }
+  .res-main { grid-area: 2 / 1; }
+  .summary { grid-area: 3 / 1; }
+  .lbline { grid-area: 4 / 1; }
+  .btn { grid-area: 5 / 1; align-self: end; }
+  .chart { grid-area: 1 / 2 / 6 / 3; align-self: center; margin-top: 0; }
+}
+
+@media (max-height: 420px) and (min-aspect-ratio: 1/1) {
+  .result { padding: 8px 12px; row-gap: 4px; }
+  .cps { font-size: clamp(40px, 11vw, 56px); }
+  .btn { min-height: 36px; }
+  .lbline .btn, .lbline button { min-height: 28px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ripple { display: none; }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="top">
+    <h1 class="brand">Tap Sprint</h1>
+    <span class="cap">Tap speed test</span>
+  </header>
+
+  <div class="modes" role="group" aria-label="Round length">
+    <button class="mode" type="button" data-mode="1" aria-pressed="false" aria-label="1 second round"><span class="n">1</span><span class="u">sec</span></button>
+    <button class="mode" type="button" data-mode="5" aria-pressed="true" aria-label="5 second round"><span class="n">5</span><span class="u">sec</span></button>
+    <button class="mode" type="button" data-mode="10" aria-pressed="false" aria-label="10 second round"><span class="n">10</span><span class="u">sec</span></button>
+    <button class="mode" type="button" data-mode="30" aria-pressed="false" aria-label="30 second round"><span class="n">30</span><span class="u">sec</span></button>
+    <button class="mode" type="button" data-mode="60" aria-pressed="false" aria-label="1 minute round"><span class="n">1</span><span class="u">min</span></button>
+    <button class="mode" type="button" data-mode="custom" aria-pressed="false" aria-label="Custom round length"><span id="customN" class="n">+</span><span class="u">custom</span></button>
+  </div>
+
+  <div id="customRow" class="custom" hidden>
+    <label for="customSec">Seconds</label>
+    <input id="customSec" type="number" inputmode="numeric" min="1" max="600" step="1" value="45" autocomplete="off">
+    <span id="customHint" class="customhint">1 to 600. Custom rounds are not ranked.</span>
+  </div>
+
+  <div class="stage">
+    <div id="pad" class="pad" role="button" tabindex="0" aria-label="Tap area">
+      <div class="pad-top">
+        <span id="tag" class="tag">5 sec round</span>
+        <span class="clock"><span id="time" class="time">5.00</span><span class="sec">sec</span></span>
+      </div>
+      <div class="mid">
+        <div id="count" class="count">0</div>
+        <div class="unit">taps</div>
+      </div>
+      <div class="pad-bottom">
+        <div id="hint" class="hint">Tap anywhere to start</div>
+        <div id="hint2" class="hint2">Click, right-click or press Space works too. Your first tap starts the clock.</div>
+      </div>
+      <div class="bar"><i id="fill"></i></div>
+    </div>
+
+    <section id="result" class="result" aria-live="polite" hidden>
+      <div class="res-head">
+        <span id="rank" class="rank">Steady</span>
+        <span id="badge" class="badge" hidden>New best</span>
+      </div>
+      <div class="res-main">
+        <span id="cps" class="cps">0.0</span>
+        <span class="cps-unit">CPS</span>
+      </div>
+      <p id="summary" class="summary"><span id="sumtext"></span> <span id="methodTag" class="methodtag"></span></p>
+      <p id="note" class="note"></p>
+      <p id="lbline" class="lbline" hidden><span id="lbtext"></span><button id="nameBtn" class="linkbtn" type="button" hidden>Add name</button></p>
+      <div class="chart">
+        <p id="chartcap" class="chartcap"></p>
+        <div id="hist" class="hist"></div>
+        <div class="axis"><span>0 s</span><span id="axisend"></span></div>
+      </div>
+      <button id="again" class="btn" type="button">Go again</button>
+    </section>
+
+    <section id="board" class="board" aria-label="Leaderboard" hidden>
+      <div class="board-head">
+        <h2>Leaderboard</h2>
+        <button id="boardBack" class="ghost" type="button">Back</button>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Leaderboard round length">
+        <button class="tab" role="tab" type="button" data-sec="1" aria-selected="false">1s</button>
+        <button class="tab" role="tab" type="button" data-sec="5" aria-selected="true">5s</button>
+        <button class="tab" role="tab" type="button" data-sec="10" aria-selected="false">10s</button>
+        <button class="tab" role="tab" type="button" data-sec="30" aria-selected="false">30s</button>
+        <button class="tab" role="tab" type="button" data-sec="60" aria-selected="false">1m</button>
+      </div>
+      <div class="mtabs" role="tablist" aria-label="Input method filter">
+        <button class="mtab" role="tab" type="button" data-method="all" aria-selected="false" aria-label="All input methods">All</button>
+        <button class="mtab" role="tab" type="button" data-method="touch" aria-selected="false" aria-label="Touch">Touch</button>
+        <button class="mtab" role="tab" type="button" data-method="mouse" aria-selected="false" aria-label="Mouse">Mouse</button>
+        <button class="mtab" role="tab" type="button" data-method="key" aria-selected="false" aria-label="Keyboard">Keys</button>
+        <button class="mtab" role="tab" type="button" data-method="combo" aria-selected="false" aria-label="Mixed, mouse and keyboard together">Mixed</button>
+      </div>
+      <p id="boardMsg" class="boardmsg">Loading…</p>
+      <button id="boardRetry" class="linkbtn" type="button" hidden>Try again</button>
+      <ol id="rows" class="rows"></ol>
+      <p id="repMsg" class="meline" role="status" hidden></p>
+      <p id="meLine" class="meline" hidden></p>
+      <p id="whoLine" class="meline" hidden></p>
+      <form id="nameForm" class="nameform" autocomplete="off">
+        <label for="nameInput">Your name</label>
+        <input id="nameInput" type="text" maxlength="16" spellcheck="false" autocomplete="off" autocapitalize="off">
+        <button class="btn small" type="submit">Save</button>
+        <span id="nameMsg" class="namemsg" role="status"></span>
+      </form>
+    </section>
+  </div>
+
+  <footer class="dock">
+    <span id="bestLine" class="bestline"></span>
+    <button id="boardBtn" class="ghost" type="button">Leaderboard</button>
+  </footer>
+</main>
+
+<script>
+/* Game owner: set leaderboardUrl to your leaderboard server (see README) to turn the global leaderboard on.
+   Optional: getPlayerName is a function that returns the player's name from the portal the game runs on
+   (a string or a Promise of one). When it gives a name, players are not asked to type one.
+   CrazyGames names are picked up automatically when their SDK is on the page. */
+window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
+</script>
+<script>
+(function () {
+  'use strict';
+
+  var KEY = 'tapsprint.v1';
+  var PRESETS = [1, 5, 10, 30, 60];
+  var MAX_CUSTOM = 600;
+  var TIERS = [[11, 'Unreal'], [9, 'Blazing'], [7, 'Fast'], [5, 'Quick'], [3, 'Steady'], [0, 'Warming up']];
+  var METHODS = ['touch', 'mouse', 'key', 'combo'];
+  var METHOD_LABEL = { touch: 'Touch', mouse: 'Mouse', key: 'Keyboard', combo: 'Mixed' };
+  var FLASH_MS = 500;
+  var LOCK_MS = 800;
+  var CFG = window.TAP_SPRINT_CONFIG || {};
+
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+  function $(id) { return document.getElementById(id); }
+  var pad = $('pad'), countEl = $('count'), timeEl = $('time'), tagEl = $('tag');
+  var hintEl = $('hint'), hint2El = $('hint2'), fillEl = $('fill');
+  var resultEl = $('result'), rankEl = $('rank'), badgeEl = $('badge'), cpsEl = $('cps');
+  var sumEl = $('sumtext'), noteEl = $('note'), histEl = $('hist'), capEl = $('chartcap');
+  var axisEnd = $('axisend'), againBtn = $('again');
+  var lbline = $('lbline'), lbtext = $('lbtext'), nameBtn = $('nameBtn');
+  var customRow = $('customRow'), customInput = $('customSec'), customHint = $('customHint'), customN = $('customN');
+  var bestLine = $('bestLine'), boardBtn = $('boardBtn');
+  var boardEl = $('board'), boardBack = $('boardBack'), boardMsg = $('boardMsg'), boardRetry = $('boardRetry');
+  var rowsEl = $('rows'), meLine = $('meLine'), nameForm = $('nameForm'), nameInput = $('nameInput'), nameMsg = $('nameMsg');
+  var methodTag = $('methodTag'), repMsg = $('repMsg'), whoLine = $('whoLine');
+  var modeBtns = [].slice.call(document.querySelectorAll('.mode'));
+  var tabBtns = [].slice.call(document.querySelectorAll('.tab'));
+  var mtabBtns = [].slice.call(document.querySelectorAll('.mtab'));
+
+  var store = { mode: 5, custom: false, customSec: 45, best: {}, posted: {}, name: '', pid: '', method: '' };
+  var state = 'idle';            // idle | running | done | result
+  var boardOpen = false, boardSec = 5, boardMethod = 'all', boardReq = 0, resultSeq = 0, boardLB = null;
+  var srcs = { touch: false, mouse: false, key: false };
+  var platformName = '', platformReady = Promise.resolve();
+  var duration = 5000, nb = 5, bucketMs = 1000;
+  var startT = 0, endT = 0, taps = 0, buckets = [];
+  var raf = 0, tEnd = 0, tShow = 0, tLock = 0;
+  var last = { taps: 0, prev: 0, isBest: false, sec: 5, custom: false, method: 'mouse', buckets: [] };
+  var ripples = [];
+
+  /* ---- YouTube Playables hooks: inert unless the Playables SDK is present ---- */
+  function yt(fn) {
+    try {
+      var g = window.ytgame;
+      if (g && g.IN_PLAYABLES_ENV) { fn(g); }
+    } catch (e) {}
+  }
+  function settle(p) {
+    if (p && typeof p.catch === 'function') { p.catch(function () {}); }
+  }
+
+  /* ---- Helpers ---- */
+  function fmt(ms) { return (ms / 1000).toFixed(2); }
+  function fmtDur(s) {
+    if (s < 60) { return s + ' sec'; }
+    var m = Math.floor(s / 60), r = s % 60;
+    return r ? m + ' min ' + r + ' sec' : m + ' min';
+  }
+  function curSec() { return store.custom ? store.customSec : store.mode; }
+  function bestKey(sec, custom, method) { return (custom ? 'c' : '') + sec + ':' + method; }
+
+  /* Input method. A round is classed by what the counted taps came from: touch (phones, tablets, pen),
+     mouse, keyboard, or a mix of two or more of those. */
+  function guessMethod() {
+    try { if (window.matchMedia('(pointer: coarse)').matches) { return 'touch'; } } catch (e) {}
+    return 'mouse';
+  }
+  function activeMethod() { return METHODS.indexOf(store.method) > -1 ? store.method : guessMethod(); }
+  function methodOf(s) {
+    var n = (s.touch ? 1 : 0) + (s.mouse ? 1 : 0) + (s.key ? 1 : 0);
+    if (n > 1) { return 'combo'; }
+    return s.touch ? 'touch' : (s.key ? 'key' : 'mouse');
+  }
+  function rankFor(cps) {
+    for (var i = 0; i < TIERS.length; i++) {
+      if (cps >= TIERS[i][0]) { return TIERS[i][1]; }
+    }
+    return TIERS[TIERS.length - 1][1];
+  }
+  function cleanName(s) {
+    if (typeof s !== 'string') { return ''; }
+    var n = s.replace(/\s+/g, ' ').trim();
+    return /^[A-Za-z0-9 _.\-]{2,16}$/.test(n) ? n : '';
+  }
+  function platformClean(n) {
+    if (typeof n !== 'string') { return ''; }
+    var t = n.replace(/[^A-Za-z0-9 _.\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim();
+    return t.length >= 2 ? t : '';
+  }
+  function playerName() { return platformName || store.name; }
+  function detectPlatformName() {
+    var lookup = Promise.resolve().then(function () {
+      if (typeof CFG.getPlayerName === 'function') { return CFG.getPlayerName(); }
+      var cg = window.CrazyGames && window.CrazyGames.SDK;
+      if (cg && cg.user && cg.user.isUserAccountAvailable) {
+        return cg.user.getUser().then(function (u) { return u && u.username; });
+      }
+      return '';
+    }).then(platformClean, function () { return ''; });
+    var timeout = new Promise(function (res) { setTimeout(function () { res(''); }, 3000); });
+    return Promise.race([lookup, timeout]).then(function (n) { platformName = n; });
+  }
+  function newPid() {
+    var s = '';
+    try {
+      var a = new Uint8Array(16);
+      (window.crypto || window.msCrypto).getRandomValues(a);
+      for (var i = 0; i < a.length; i++) { s += ('0' + a[i].toString(16)).slice(-2); }
+    } catch (e) { s = ''; }
+    if (s.length < 24) {
+      s = (Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/[^a-z0-9]/g, '');
+    }
+    return s.slice(0, 40);
+  }
+
+  /* ---- Saved state ---- */
+  /* Keys look like 5:mouse or c45:touch. Older saves had no method (5, c45): those bests are kept under the
+     method this device most likely used. Older "posted" marks are dropped so those bests post again. */
+  function mergeMap(dst, src, keepLegacy) {
+    if (!src || typeof src !== 'object') { return; }
+    Object.keys(src).forEach(function (k) {
+      var key = k;
+      if (/^c?\d{1,3}$/.test(k)) {
+        if (!keepLegacy) { return; }
+        key = k + ':' + guessMethod();
+      } else if (!/^c?\d{1,3}:(touch|mouse|key|combo)$/.test(k)) {
+        return;
+      }
+      var v = Math.floor(Number(src[k]));
+      if (isFinite(v) && v > 0) { dst[key] = Math.max(dst[key] || 0, v); }
+    });
+  }
+  function merge(o) {
+    if (!o || typeof o !== 'object') { return; }
+    var m = Number(o.mode);
+    if (PRESETS.indexOf(m) > -1) { store.mode = m; }
+    if (typeof o.custom === 'boolean') { store.custom = o.custom; }
+    var cs = Number(o.customSec);
+    if (isFinite(cs) && Math.floor(cs) === cs && cs >= 1 && cs <= MAX_CUSTOM) { store.customSec = cs; }
+    mergeMap(store.best, o.best, true);
+    mergeMap(store.posted, o.posted, false);
+    if (METHODS.indexOf(o.method) > -1 && !store.method) { store.method = o.method; }
+    var n = cleanName(o.name);
+    if (n && !store.name) { store.name = n; }
+    if (typeof o.pid === 'string' && /^[a-z0-9]{12,64}$/.test(o.pid) && !store.pid) { store.pid = o.pid; }
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { merge(JSON.parse(raw)); }
+    } catch (e) {}
+  }
+  function save() {
+    var s = JSON.stringify(store);
+    try { localStorage.setItem(KEY, s); } catch (e) {}
+    yt(function (g) { settle(g.game.saveData(s)); });
+  }
+
+  /* ---- Leaderboard adapters ----
+     Each adapter: top(sec, method) -> Promise<{rows:[{id?,name,taps,method,mine}], me, hidden}>
+                   submit(sec, method, taps) -> Promise, setName(name) -> Promise, report(id) -> Promise (optional).
+     Order of preference: your own server (leaderboardUrl), the Artifact shared store, none. */
+  var NONE = { kind: 'none' };
+  var lbPromise = null;
+
+  function makeHttp(base) {
+    base = base.replace(/\/+$/, '');
+    function req(path, opts) {
+      opts = opts || {};
+      var ctl = ('AbortController' in window) ? new AbortController() : null;
+      if (ctl) { opts.signal = ctl.signal; }
+      var timer = setTimeout(function () { if (ctl) { ctl.abort(); } }, 8000);
+      return fetch(base + path, opts).then(function (r) {
+        clearTimeout(timer);
+        if (!r.ok) {
+          return r.json().then(function (j) { return j || {}; }, function () { return {}; }).then(function (j) {
+            var e = new Error('http ' + r.status);
+            e.status = r.status;
+            e.code = j.error || '';
+            throw e;
+          });
+        }
+        return r.json();
+      }, function (e) { clearTimeout(timer); throw e; });
+    }
+    function postJson(path, body) {
+      return req(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    }
+    return {
+      kind: 'http',
+      perDocName: false,
+      top: function (sec, method) {
+        return req('/scores?sec=' + sec + '&method=' + encodeURIComponent(method) + '&pid=' + encodeURIComponent(store.pid), { cache: 'no-store' }).then(function (j) {
+          return { rows: (j && j.rows) || [], me: (j && j.me) || null, hidden: !!(j && j.hidden) };
+        });
+      },
+      submit: function (sec, method, taps) {
+        return postJson('/scores', { sec: sec, method: method, taps: taps, name: playerName(), pid: store.pid });
+      },
+      setName: function (name) { return postJson('/name', { pid: store.pid, name: name }); },
+      report: function (id) { return postJson('/report', { pid: store.pid, id: id }); }
+    };
+  }
+
+  function makeDb(db) {
+    function docId(sec, method) { return sec + '_' + method + '_' + store.pid; }
+    return {
+      kind: 'db',
+      perDocName: true,
+      top: function (sec, method) {
+        var q = db.collection('scores').where('sec', '==', sec);
+        if (method !== 'all') { q = q.where('method', '==', method); }
+        return q.orderBy('taps', 'desc').limit(50).get().then(function (snap) {
+          var list = snap.docs.map(function (d) {
+            var v = d.data() || {};
+            var m = METHODS.indexOf(v.method) > -1 ? v.method : 'mouse';
+            return { name: String(v.name || 'Player'), taps: Number(v.taps) || 0, ts: Number(v.ts) || 0, method: m, mine: d.id === docId(sec, m) };
+          });
+          list.sort(function (a, b) { return (b.taps - a.taps) || (a.ts - b.ts); });
+          return { rows: list.slice(0, 20), me: null, hidden: false };
+        });
+      },
+      submit: function (sec, method, taps) {
+        var ref = db.doc('scores/' + docId(sec, method));
+        var name = playerName();
+        return ref.get().then(function (s) {
+          var cur = s.exists ? s.data() : null;
+          if (cur && Number(cur.taps) >= taps) {
+            return cur.name === name ? undefined : ref.update({ name: name });
+          }
+          return ref.set({ sec: sec, method: method, taps: taps, name: name, ts: Date.now() });
+        });
+      },
+      setName: function () { return Promise.resolve(); }
+    };
+  }
+
+  function getLB() {
+    if (!lbPromise) {
+      lbPromise = Promise.resolve().then(function () {
+        if (typeof CFG.leaderboardUrl === 'string' && CFG.leaderboardUrl.trim()) {
+          return makeHttp(CFG.leaderboardUrl.trim());
+        }
+        if (window.claude && typeof window.claude.use === 'function') {
+          return window.claude.use('db').then(function (db) { return db ? makeDb(db) : NONE; }, function () { return NONE; });
+        }
+        return NONE;
+      }).catch(function () { return NONE; });
+    }
+    return lbPromise;
+  }
+
+  /* The server refused the name (blocked word or bad format): forget a typed name so the player is asked again. */
+  function nameRejected() {
+    if (!platformName) {
+      store.name = '';
+      save();
+      nameInput.value = '';
+    }
+    if (boardOpen) {
+      nameMsg.className = 'namemsg bad';
+      nameMsg.textContent = platformName ? 'This name cannot be used on the leaderboard.' : 'That name is not allowed. Please choose another.';
+    }
+  }
+
+  function postScore(sec, method, taps) {
+    return platformReady.then(getLB).then(function (lb) {
+      if (lb.kind === 'none') { throw new Error('no leaderboard'); }
+      return lb.submit(sec, method, taps);
+    }).then(function () {
+      var k = bestKey(sec, false, method);
+      store.posted[k] = Math.max(store.posted[k] || 0, taps);
+      save();
+    }, function (e) {
+      if (e && (e.code === 'name not allowed' || e.code === 'invalid name')) { nameRejected(); }
+      throw e;
+    });
+  }
+
+  /* Post every stored preset best that has not been posted (or all of them, when force is set). */
+  function syncBests(force) {
+    return platformReady.then(function () {
+      if (!playerName()) { return; }
+      var chain = Promise.resolve();
+      PRESETS.forEach(function (sec) {
+        METHODS.forEach(function (m) {
+          var k = bestKey(sec, false, m);
+          var b = store.best[k];
+          if (b && (force || b > (store.posted[k] || 0))) {
+            chain = chain.then(function () {
+              if (!playerName()) { return; }
+              return postScore(sec, m, b).catch(function () {});
+            });
+          }
+        });
+      });
+      return chain;
+    });
+  }
+
+  /* ---- Rendering ---- */
+  function setControlsEnabled(on) {
+    modeBtns.forEach(function (b) { b.disabled = !on; });
+    customInput.disabled = !on;
+    boardBtn.disabled = !on;
+  }
+
+  function renderBest() {
+    var sec = curSec();
+    var m = activeMethod();
+    var b = store.best[bestKey(sec, store.custom, m)];
+    var label = fmtDur(sec) + (store.custom ? ' custom' : '') + ' (' + METHOD_LABEL[m] + ')';
+    bestLine.textContent = b
+      ? 'Best for ' + label + ': ' + (b / sec).toFixed(1) + ' CPS, ' + b + (b === 1 ? ' tap' : ' taps')
+      : 'No score yet for ' + label;
+  }
+
+  function configure() {
+    var sec = curSec();
+    duration = sec * 1000;
+    nb = (sec === 1) ? 10 : Math.min(sec, 10);
+    bucketMs = duration / nb;
+    modeBtns.forEach(function (b) {
+      var v = b.getAttribute('data-mode');
+      var on = (v === 'custom') ? store.custom : (!store.custom && Number(v) === store.mode);
+      b.setAttribute('aria-pressed', String(on));
+    });
+    customN.textContent = store.custom ? String(store.customSec) : '+';
+    customN.className = 'n' + (customN.textContent.length >= 3 ? ' long' : '');
+    customRow.hidden = !store.custom;
+    if (document.activeElement !== customInput) { customInput.value = String(store.customSec); }
+    tagEl.textContent = fmtDur(sec) + ' round';
+    renderBest();
+  }
+
+  function resetToIdle() {
+    clearTimeout(tEnd); clearTimeout(tShow); clearTimeout(tLock);
+    cancelAnimationFrame(raf);
+    resultSeq += 1;
+    state = 'idle';
+    boardOpen = false;
+    taps = 0;
+    buckets = [];
+    configure();
+    countEl.textContent = '0';
+    timeEl.textContent = fmt(duration);
+    fillEl.style.transform = 'scaleX(1)';
+    hintEl.textContent = 'Tap anywhere to start';
+    hint2El.textContent = 'Click, right-click or press Space works too. Your first tap starts the clock.';
+    pad.classList.remove('live');
+    pad.classList.remove('done');
+    pad.setAttribute('aria-label', 'Tap area, ' + fmtDur(curSec()) + ' round. Tap to start.');
+    resultEl.hidden = true;
+    boardEl.hidden = true;
+    pad.hidden = false;
+    setControlsEnabled(true);
+  }
+
+  /* ---- Round flow ---- */
+  function begin(now) {
+    state = 'running';
+    startT = now;
+    endT = now + duration;
+    taps = 0;
+    buckets = [];
+    srcs = { touch: false, mouse: false, key: false };
+    for (var i = 0; i < nb; i++) { buckets.push(0); }
+    setControlsEnabled(false);
+    pad.classList.add('live');
+    tEnd = setTimeout(finish, duration);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function tick() {
+    if (state !== 'running') { return; }
+    var left = endT - performance.now();
+    if (left <= 0) { finish(); return; }
+    timeEl.textContent = fmt(left);
+    fillEl.style.transform = 'scaleX(' + (left / duration).toFixed(4) + ')';
+    raf = requestAnimationFrame(tick);
+  }
+
+  function finish() {
+    if (state !== 'running') { return; }
+    state = 'done';
+    clearTimeout(tEnd);
+    cancelAnimationFrame(raf);
+    timeEl.textContent = fmt(0);
+    fillEl.style.transform = 'scaleX(0)';
+    countEl.textContent = String(taps);
+    hintEl.textContent = 'Time!';
+    hint2El.textContent = '';
+    pad.classList.remove('live');
+    pad.classList.add('done');
+    var sec = curSec(), custom = store.custom, method = methodOf(srcs), key = bestKey(sec, custom, method);
+    var prev = store.best[key] || 0;
+    last = { taps: taps, prev: prev, isBest: taps > prev, sec: sec, custom: custom, method: method, buckets: buckets.slice() };
+    store.method = method;
+    if (last.isBest) { store.best[key] = taps; }
+    save();
+    tShow = setTimeout(showResult, FLASH_MS);
+  }
+
+  function drawHist(b, sec) {
+    histEl.textContent = '';
+    histEl.style.setProperty('--n', String(b.length));
+    var max = Math.max.apply(null, b);
+    b.forEach(function (v) {
+      var col = document.createElement('div');
+      col.className = 'col' + ((max > 0 && v === max) ? ' peak' : '');
+      var n = document.createElement('b');
+      n.textContent = String(v);
+      var bar = document.createElement('i');
+      bar.style.setProperty('--p', max > 0 ? String(v / max) : '0');
+      col.appendChild(n);
+      col.appendChild(bar);
+      histEl.appendChild(col);
+    });
+    var bs = sec / b.length;
+    var bsText = (bs % 1 === 0) ? String(bs) : String(Math.round(bs * 10) / 10);
+    capEl.textContent = (bs === 1 ? 'Taps per second' : 'Taps per ' + bsText + ' sec') + ', fastest in orange';
+    axisEnd.textContent = fmtDur(sec);
+  }
+
+  function setLine(text, withNameBtn) {
+    lbtext.textContent = text;
+    nameBtn.hidden = !withNameBtn;
+    lbline.hidden = false;
+  }
+
+  function showResult() {
+    state = 'result';
+    var sec = last.sec;
+    var label = fmtDur(sec) + (last.custom ? ' custom' : '') + ' (' + METHOD_LABEL[last.method] + ')';
+    var cps = last.taps / sec;
+    methodTag.textContent = METHOD_LABEL[last.method];
+    rankEl.textContent = rankFor(cps);
+    cpsEl.textContent = cps.toFixed(1);
+    sumEl.textContent = last.taps + (last.taps === 1 ? ' tap' : ' taps') + ' in ' + fmtDur(sec);
+    badgeEl.hidden = !last.isBest;
+    if (last.isBest) {
+      noteEl.textContent = last.prev
+        ? 'Beat your previous best of ' + last.prev + (last.prev === 1 ? ' tap.' : ' taps.')
+        : 'First score saved for ' + label + '.';
+    } else {
+      var b = store.best[bestKey(sec, last.custom, last.method)];
+      noteEl.textContent = 'Your best for ' + label + ': ' + b + (b === 1 ? ' tap' : ' taps') + ' (' + (b / sec).toFixed(1) + ' CPS).';
+    }
+    drawHist(last.buckets, sec);
+    renderBest();
+    pad.hidden = true;
+    boardEl.hidden = true;
+    resultEl.hidden = false;
+    setControlsEnabled(true);
+    againBtn.disabled = true;
+    tLock = setTimeout(function () {
+      againBtn.disabled = false;
+      try { againBtn.focus({ preventScroll: true }); } catch (e) {}
+    }, LOCK_MS);
+
+    /* Leaderboard line */
+    var rid = (resultSeq += 1);
+    lbline.hidden = true;
+    nameBtn.hidden = true;
+    var posting = { sec: last.sec, method: last.method, taps: last.taps };
+    Promise.all([getLB(), platformReady]).then(function (arr) {
+      var lb = arr[0];
+      if (rid !== resultSeq || lb.kind === 'none') { return; }
+      if (last.custom) { setLine('Custom rounds are not ranked on the leaderboard.', false); return; }
+      if (!last.isBest) { return; }
+      if (!playerName()) { setLine('Add a name to post this score.', true); return; }
+      setLine('Posting your score…', false);
+      postScore(posting.sec, posting.method, posting.taps).then(function () {
+        if (rid === resultSeq) { setLine('Posted to the ' + METHOD_LABEL[posting.method] + ' leaderboard.', false); }
+      }, function (e) {
+        if (rid !== resultSeq) { return; }
+        if (e && (e.code === 'name not allowed' || e.code === 'invalid name')) {
+          setLine(platformName ? 'Your name cannot be used on the leaderboard.' : 'That name is not allowed. Add a new one.', !platformName);
+        } else {
+          setLine('Could not post this score. It is saved on this device.', false);
+        }
+      });
+    });
+  }
+
+  /* ---- Leaderboard panel ---- */
+  function renderTabs() {
+    tabBtns.forEach(function (t) { t.setAttribute('aria-selected', String(Number(t.getAttribute('data-sec')) === boardSec)); });
+    mtabBtns.forEach(function (t) { t.setAttribute('aria-selected', String(t.getAttribute('data-method') === boardMethod)); });
+  }
+
+  function sendReport(btn, id, name) {
+    btn.disabled = true;
+    boardLB.report(id).then(function () {
+      btn.textContent = 'Reported';
+      repMsg.className = 'meline';
+      repMsg.textContent = 'Thanks. A name that several players report is hidden.';
+      repMsg.hidden = false;
+    }, function (e) {
+      btn.disabled = false;
+      repMsg.className = 'meline bad';
+      repMsg.textContent = (e && e.status === 403) ? 'Post a score first, then you can report names.'
+        : (e && e.status === 429) ? 'Too many reports just now. Try again in a minute.'
+        : 'Could not send the report. Try again.';
+      repMsg.hidden = false;
+    });
+  }
+
+  function renderRows(data) {
+    var rows = data.rows;
+    var canReport = !!(boardLB && typeof boardLB.report === 'function');
+    var showMethod = boardMethod === 'all';
+    rowsEl.textContent = '';
+    repMsg.hidden = true;
+    meLine.hidden = true;
+    meLine.className = 'meline';
+    if (data.hidden) {
+      meLine.className = 'meline bad';
+      meLine.textContent = 'Your name is hidden from the board (reports or the name filter). Choose a new name to appear again.';
+      meLine.hidden = false;
+    }
+    if (!rows.length) {
+      boardMsg.hidden = false;
+      boardMsg.textContent = showMethod ? 'No scores yet. Be the first.' : 'No ' + METHOD_LABEL[boardMethod] + ' scores yet. Be the first.';
+      return;
+    }
+    boardMsg.hidden = true;
+    var haveMine = false;
+    rows.forEach(function (r, i) {
+      var li = document.createElement('li');
+      if (r.mine) { li.className = 'mine'; haveMine = true; }
+      var rk = document.createElement('span'); rk.className = 'rk'; rk.textContent = String(i + 1);
+      var label = String(r.name) + (r.mine ? ' (you)' : '');
+      var reportable = canReport && !r.mine && typeof r.id === 'string' && r.id;
+      var nm = document.createElement(reportable ? 'button' : 'span');
+      nm.className = 'nm';
+      nm.textContent = label;
+      var sc = document.createElement('span'); sc.className = 'sc'; sc.textContent = (r.taps / boardSec).toFixed(1) + ' CPS';
+      var tp = document.createElement('span'); tp.className = 'tp'; tp.textContent = r.taps + (r.taps === 1 ? ' tap' : ' taps');
+      li.appendChild(rk); li.appendChild(nm); li.appendChild(sc); li.appendChild(tp);
+      var sub = document.createElement('div');
+      sub.className = 'sub';
+      sub.hidden = true;
+      var chipShown = showMethod && METHODS.indexOf(r.method) > -1;
+      if (chipShown) {
+        var mt = document.createElement('span'); mt.className = 'mt'; mt.textContent = METHOD_LABEL[r.method];
+        sub.appendChild(mt);
+        sub.hidden = false;
+      }
+      if (reportable) {
+        nm.type = 'button';
+        nm.setAttribute('aria-expanded', 'false');
+        nm.setAttribute('title', 'Tap to report this name');
+        var rep = document.createElement('button');
+        rep.type = 'button';
+        rep.className = 'rep';
+        rep.textContent = 'Report name';
+        rep.setAttribute('aria-label', 'Report the name ' + r.name);
+        rep.hidden = true;
+        rep.addEventListener('click', function () { sendReport(rep, r.id, r.name); });
+        sub.appendChild(rep);
+        nm.addEventListener('click', function () {
+          var open = rep.hidden;
+          rep.hidden = !open;
+          nm.setAttribute('aria-expanded', String(open));
+          sub.hidden = !(chipShown || open);
+        });
+      }
+      li.appendChild(sub);
+      rowsEl.appendChild(li);
+    });
+    if (!haveMine && !data.hidden && data.me && data.me.rank) {
+      var mm = METHODS.indexOf(data.me.method) > -1 && showMethod ? ' (' + METHOD_LABEL[data.me.method] + ')' : '';
+      meLine.textContent = 'Your rank: #' + data.me.rank + ' with ' + data.me.taps + (data.me.taps === 1 ? ' tap' : ' taps') + mm + '.';
+      meLine.hidden = false;
+    }
+  }
+
+  function loadBoard() {
+    var my = (boardReq += 1);
+    rowsEl.textContent = '';
+    meLine.hidden = true;
+    repMsg.hidden = true;
+    boardRetry.hidden = true;
+    boardMsg.hidden = false;
+    boardMsg.textContent = 'Loading…';
+    platformReady.then(getLB).then(function (lb) {
+      if (my !== boardReq) { return; }
+      boardLB = lb;
+      nameForm.hidden = (lb.kind === 'none') || !!platformName;
+      whoLine.hidden = (lb.kind === 'none') || !platformName;
+      whoLine.textContent = platformName ? 'Posting as ' + platformName + '.' : '';
+      if (lb.kind === 'none') {
+        boardMsg.textContent = 'The global leaderboard is not connected in this copy of the game.';
+        return;
+      }
+      return lb.top(boardSec, boardMethod).then(function (data) {
+        if (my === boardReq) { renderRows(data); }
+      });
+    }).catch(function () {
+      if (my !== boardReq) { return; }
+      boardMsg.hidden = false;
+      boardMsg.textContent = 'Could not load the leaderboard. Check your connection and try again.';
+      boardRetry.hidden = false;
+    });
+  }
+
+  function openBoard() {
+    if (state === 'running' || state === 'done') { return; }
+    boardOpen = true;
+    pad.hidden = true;
+    resultEl.hidden = true;
+    boardEl.hidden = false;
+    if (!store.custom && PRESETS.indexOf(store.mode) > -1) { boardSec = store.mode; }
+    boardMethod = activeMethod();     // default filter: what this player used last
+    renderTabs();
+    nameInput.value = store.name;
+    nameMsg.textContent = '';
+    nameMsg.className = 'namemsg';
+    loadBoard();
+    syncBests(false);
+  }
+
+  function closeBoard() {
+    boardOpen = false;
+    boardEl.hidden = true;
+    if (state === 'result') { resultEl.hidden = false; } else { pad.hidden = false; }
+  }
+
+  boardBtn.addEventListener('click', openBoard);
+  boardBack.addEventListener('click', closeBoard);
+  boardRetry.addEventListener('click', loadBoard);
+  nameBtn.addEventListener('click', function () {
+    openBoard();
+    try { nameInput.focus({ preventScroll: true }); } catch (e) {}
+  });
+  tabBtns.forEach(function (t) {
+    t.addEventListener('click', function () {
+      boardSec = Number(t.getAttribute('data-sec'));
+      renderTabs();
+      loadBoard();
+    });
+  });
+  mtabBtns.forEach(function (t) {
+    t.addEventListener('click', function () {
+      boardMethod = t.getAttribute('data-method');
+      renderTabs();
+      loadBoard();
+    });
+  });
+  nameForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var n = cleanName(nameInput.value);
+    if (!n) {
+      nameMsg.className = 'namemsg bad';
+      nameMsg.textContent = 'Use 2 to 16 letters, numbers, spaces, dots, dashes or underscores.';
+      return;
+    }
+    nameMsg.className = 'namemsg';
+    nameMsg.textContent = 'Checking…';
+    platformReady.then(getLB).then(function (lb) {
+      return lb.setName ? lb.setName(n).then(function () { return lb; }) : lb;
+    }).then(function (lb) {
+      store.name = n;
+      nameInput.value = n;
+      save();
+      nameMsg.className = 'namemsg';
+      nameMsg.textContent = 'Saved.';
+      return syncBests(lb.perDocName).then(function () { if (boardOpen) { loadBoard(); } });
+    }, function (err) {
+      nameMsg.className = 'namemsg bad';
+      if (err && err.code === 'name not allowed') {
+        nameMsg.textContent = 'That name is not allowed. Please choose another.';
+      } else if (err && err.code === 'invalid name') {
+        nameMsg.textContent = 'Use 2 to 16 letters, numbers, spaces, dots, dashes or underscores.';
+      } else {
+        nameMsg.textContent = 'Could not reach the leaderboard to check the name. Try again.';
+      }
+    });
+  });
+
+  /* ---- Input ---- */
+  function feedback(x, y) {
+    if (reduce) { return; }
+    if (countEl.animate) {
+      countEl.animate([{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 90, easing: 'ease-out' });
+    }
+    var box = pad.getBoundingClientRect();
+    var r = document.createElement('span');
+    r.className = 'ripple';
+    r.style.left = (x == null ? box.width / 2 : x - box.left) + 'px';
+    r.style.top = (y == null ? box.height / 2 : y - box.top) + 'px';
+    r.addEventListener('animationend', function () { if (r.parentNode) { r.parentNode.removeChild(r); } });
+    pad.appendChild(r);
+    ripples.push(r);
+    if (ripples.length > 10) {
+      var old = ripples.shift();
+      if (old.parentNode) { old.parentNode.removeChild(old); }
+    }
+  }
+
+  function tap(x, y, src) {
+    if (boardOpen) { return; }
+    var now = performance.now();
+    if (state === 'idle') { begin(now); }
+    if (state !== 'running') { return; }
+    if (now >= endT) { finish(); return; }      // late tap: not counted
+    srcs[src] = true;
+    var i = Math.floor((now - startT) / bucketMs);
+    if (i < 0) { i = 0; }
+    if (i > nb - 1) { i = nb - 1; }
+    buckets[i] += 1;
+    taps += 1;
+    countEl.textContent = String(taps);
+    feedback(x, y);
+  }
+
+  /* Mouse: left and right buttons both count. A second button pressed while the first is
+     still held does not raise a new pointerdown, so those presses are caught on pointermove. */
+  var mouseDown = false, heldButtons = 0;
+  pad.addEventListener('pointerdown', function (e) {
+    var src = (e.pointerType === 'touch' || e.pointerType === 'pen') ? 'touch' : 'mouse';
+    if (e.pointerType === 'mouse') {
+      mouseDown = true;
+      heldButtons = e.buttons;
+      try { pad.setPointerCapture(e.pointerId); } catch (err) {}
+      if (e.button !== 0 && e.button !== 2) { return; }
+    }
+    tap(e.clientX, e.clientY, src);
+  });
+  pad.addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse' || !mouseDown) { return; }
+    var gained = e.buttons & ~heldButtons;
+    heldButtons = e.buttons;
+    if (gained & 3) { tap(e.clientX, e.clientY, 'mouse'); }
+  });
+  function mouseUp(e) {
+    if (e.pointerType === 'mouse') { mouseDown = false; heldButtons = 0; }
+  }
+  pad.addEventListener('pointerup', mouseUp);
+  pad.addEventListener('pointercancel', mouseUp);
+  pad.addEventListener('lostpointercapture', mouseUp);
+  pad.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.repeat) { return; }
+    if (e.key !== ' ' && e.key !== 'Spacebar' && e.key !== 'Enter') { return; }
+    if (e.target && e.target.closest && e.target.closest('button, input, textarea, select, a')) { return; }
+    if (state === 'result' || boardOpen) { return; }
+    e.preventDefault();
+    tap(null, null, 'key');
+  });
+
+  modeBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      if (state === 'running' || state === 'done') { return; }
+      var v = b.getAttribute('data-mode');
+      if (v === 'custom') {
+        if (store.custom && state === 'idle' && !boardOpen) { return; }
+        store.custom = true;
+      } else {
+        var m = Number(v);
+        if (!store.custom && m === store.mode && state === 'idle' && !boardOpen) { return; }
+        store.mode = m;
+        store.custom = false;
+      }
+      save();
+      resetToIdle();
+    });
+  });
+
+  function applyCustom() {
+    var raw = customInput.value.trim();
+    var v = Number(raw);
+    var valid = raw !== '' && isFinite(v) && Math.floor(v) === v && v >= 1 && v <= MAX_CUSTOM;
+    customInput.setAttribute('aria-invalid', valid ? 'false' : 'true');
+    customHint.className = 'customhint' + (valid ? '' : ' bad');
+    if (!valid) { return; }
+    if (v === store.customSec && state === 'idle' && !boardOpen) { return; }
+    store.customSec = v;
+    save();
+    resetToIdle();
+  }
+  customInput.addEventListener('input', applyCustom);
+  customInput.addEventListener('blur', function () {
+    customInput.value = String(store.customSec);
+    customInput.setAttribute('aria-invalid', 'false');
+    customHint.className = 'customhint';
+  });
+  customInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); customInput.blur(); }
+  });
+
+  againBtn.addEventListener('click', function () {
+    if (againBtn.disabled) { return; }
+    resetToIdle();
+    try { pad.focus({ preventScroll: true }); } catch (e) {}
+  });
+
+  /* ---- Boot ---- */
+  load();
+  if (!store.pid) { store.pid = newPid(); save(); }
+  platformReady = detectPlatformName();
+  resetToIdle();
+
+  requestAnimationFrame(function () {
+    yt(function (g) {
+      g.game.firstFrameReady();
+      g.game.gameReady();
+    });
+  });
+  yt(function (g) {
+    settle(Promise.resolve(g.game.loadData()).then(function (s) {
+      if (!s) { return; }
+      merge(JSON.parse(s));
+      if (state === 'idle' && !boardOpen) { resetToIdle(); } else { renderBest(); }
+    }));
+  });
+})();
+</script>
+</body>
+</html>

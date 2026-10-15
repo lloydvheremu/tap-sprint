@@ -1,0 +1,9 @@
+# Words that are not allowed in leaderboard names.
+# One term per line. Lines starting with # are comments.
+#
+# A term of 4 or more letters blocks any name that contains it, ignoring case, spaces, dots, dashes,
+# underscores, stretched letters and number swaps (0=o 1=i 3=e 4=a 5=s 7=t).
+# A shorter term only blocks when it is a whole word of the name.
+# Start a line with = to force whole-word matching for a longer term.
+#
+# Add your terms below (for example from a public word list), then restart the server.
