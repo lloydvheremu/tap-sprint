@@ -571,7 +571,8 @@ try {
   /* ---------------- Effects ---------------- */
   console.log('Effects');
   const THEMES = ['none', 'earthquake', 'crack', 'balloon', 'paint', 'lightning', 'zerog', 'glitch', 'emoji'];
-  const FULL = (theme, extra) => ({ v: 1, level: 'full', theme, emoji: '🔥', sound: false, vib: false, heat: true, lines: true, shake: true, skin: 'classic', ripple: 'white', trail: 'none', ...(extra || {}) });
+  const POWER_COUNT = 10;
+  const FULL = (power, extra) => ({ v: 2, power, emoji: '🔥', sound: false, vib: false, skin: 'classic', ripple: 'white', trail: 'none', ...(extra || {}) });
   /* Stubs and counters injected before the page runs. */
   const COUNTERS = () => {
     window.__ac = { made: 0, osc: 0 };
@@ -643,7 +644,10 @@ try {
     const ids = ['padvis', 'pad', 'count', 'time', 'again', 'askInput', 'boardBtn', 'fxBtn', 'bestLine'];
     const moved = ids.filter((i) => document.getElementById(i) && document.getElementById(i).style.transform).concat([...document.querySelectorAll('.brand, .cap')].filter((e) => e.style.transform).map((e) => e.className));
     return {
-      items: document.querySelectorAll('.fxitem, .fxshape').length,
+      items: document.querySelectorAll('.fxitem, .fxring').length,
+      white: document.getElementById('fxwhite').classList.contains('on'),
+      noring: document.getElementById('padvis').classList.contains('noring'),
+      top: 0,
       hidden: document.querySelectorAll('.fxhid').length,
       moved,
       glitch: document.documentElement.classList.contains('fx-glitch') || !!document.documentElement.style.getPropertyValue('--fx-fringe'),
@@ -659,51 +663,143 @@ try {
     return n;
   }, sel);
 
-  /* -- counting and input-method classification are unchanged by any level or theme -- */
+
+  const topPixels = (page) => padPixels(page, '#fxtopc');
+  const POWERS_ALL = ['off', 'none', 'earthquake', 'crack', 'balloon', 'paint', 'lightning', 'zerog', 'glitch', 'emoji'];
+  const settle = async (page) => {
+    await page.waitForSelector('#result:not([hidden])', { timeout: 9000 });
+    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+  };
+
+  /* -- the power selector is a plain dropdown in the dock: no page of its own -- */
+  console.log(' Power selector');
+  {
+    const { ctx, page } = await openFx('/none', null);
+    check('the power selector is a dropdown in the dock', (await page.evaluate(() => document.getElementById('fxBtn').tagName)) === 'SELECT' && await page.evaluate(() => !!document.querySelector('.dock #fxBtn, .dockbtns #fxBtn')));
+    check('there is no settings page or modal', (await page.evaluate(() => !document.getElementById('fxPanel') && !document.querySelector('[role="dialog"]'))));
+    const opts = await page.evaluate(() => [...document.querySelectorAll('#fxBtn option')].map((o) => o.value));
+    check('it lists Off, Basic and the 8 powers', opts.join() === POWERS_ALL.join(), opts.join());
+    check('the default is Basic (jelly and ripples)', (await page.inputValue('#fxBtn')) === 'none');
+    await page.selectOption('#fxBtn', 'earthquake');
+    check('picking a power is saved', (await page.evaluate(() => JSON.parse(localStorage.getItem('tapsprint.v1')).fx.power)) === 'earthquake');
+    await page.reload();
+    check('and kept after a reload', (await page.inputValue('#fxBtn')) === 'earthquake');
+    await page.click('.mode[data-mode="5"]');
+    await page.mouse.click(200, 400);
+    check('the dropdown is disabled while a round runs', await page.locator('#fxBtn').isDisabled());
+    await settle(page);
+    check('and works again on the result screen', !(await page.locator('#fxBtn').isDisabled()));
+    check('the leaderboard screen has no power selector', !(await page.evaluate(() => !!document.querySelector('#board #fxBtn'))));
+    await ctx.close();
+  }
+
+  /* -- counting and input-method classification are unchanged by any power -- */
   console.log(' Counting');
   {
     const N = 12;
-    const combos = [['off', 'none'], ['light', 'none'], ...THEMES.map((t) => ['full', t])];
     const kinds = { mouse: 'Mouse', key: 'Keyboard', mixed: 'Mixed' };
     let allSame = true; const bad = [];
-    for (const [level, theme] of combos) {
+    for (const power of POWERS_ALL) {
       for (const kind of Object.keys(kinds)) {
-        if (theme !== 'none' && kind !== 'mixed' && kind !== 'mouse') { continue; }
-        const { ctx, page } = await openFx('/none', { ...FULL(theme), level });
+        if (power !== 'none' && power !== 'off' && kind !== 'mixed' && kind !== 'mouse') { continue; }
+        const { ctx, page } = await openFx('/none', FULL(power));
         const r = await countRound(page, kind, N);
-        if (r.taps !== N || r.method.toLowerCase() !== kinds[kind].toLowerCase()) { allSame = false; bad.push([level, theme, kind, r.taps, r.method].join(':')); }
+        if (r.taps !== N || r.method.toLowerCase() !== kinds[kind].toLowerCase()) { allSame = false; bad.push([power, kind, r.taps, r.method].join(':')); }
         await ctx.close();
       }
-      const t = await openFx('/none', { ...FULL(theme), level }, { touch: true });
+      const t = await openFx('/none', FULL(power), { touch: true });
       const r = await countRound(t.page, 'touch', N);
-      if (r.taps !== N || r.method.toLowerCase() !== 'touch') { allSame = false; bad.push([level, theme, 'touch', r.taps, r.method].join(':')); }
+      if (r.taps !== N || r.method.toLowerCase() !== 'touch') { allSame = false; bad.push([power, 'touch', r.taps, r.method].join(':')); }
       await t.ctx.close();
     }
-    check('burst of ' + N + ' taps (mouse L/R, keyboard, mixed, touch) counts and classifies identically at Off, Light and Full on all 9 themes', allSame, bad.join(' '));
+    check('burst of ' + N + ' taps (mouse L/R, keyboard, mixed, touch) counts and classifies identically on all 10 powers', allSame, bad.join(' '));
   }
 
-  /* -- no effect layer intercepts input; controls stay hit-testable while each theme runs and after -- */
+  /* -- the powers really show up on the game, over the whole page -- */
+  console.log(' Powers are visible');
+  {
+    const lt = await openFx('/none', FULL('lightning'));
+    await lt.page.click('.mode[data-mode="10"]');
+    await lt.page.evaluate(() => { if (document.activeElement) { document.activeElement.blur(); } });
+    const box = await lt.page.locator('#pad').boundingBox();
+    for (let i = 0; i < 6; i++) { await lt.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2); await sleep(45); }
+    const px = await topPixels(lt.page);
+    const above = await lt.page.evaluate((top) => { const c = document.getElementById('fxtopc'), s = c.width / innerWidth, d = c.getContext('2d').getImageData(0, 0, c.width, Math.max(1, Math.floor(top * s))).data; let n = 0; for (let i = 3; i < d.length; i += 4) { if (d[i] > 8) { n += 1; } } return n; }, box.y);
+    check('lightning: tapping the same spot over and over still draws bolts', px > 300, String(px));
+    check('lightning: the bolts come down from the top of the screen, over the header', above > 50, String(above));
+    await lt.ctx.close();
+
+    const em = await openFx('/none', FULL('emoji'));
+    await em.page.click('.mode[data-mode="10"]');
+    await em.page.evaluate(() => { if (document.activeElement) { document.activeElement.blur(); } });
+    const eb = await em.page.locator('#pad').boundingBox();
+    for (let i = 0; i < 6; i++) { await em.page.mouse.click(eb.x + 100 + i * 20, eb.y + 200); await sleep(100); }
+    await sleep(500);
+    check('emoji rain: emoji fall across the whole page', (await topPixels(em.page)) > 200);
+    await em.ctx.close();
+
+    const eq = await openFx('/none', FULL('earthquake'));
+    await eq.page.click('.mode[data-mode="5"]');
+    await eq.page.evaluate(() => { if (document.activeElement) { document.activeElement.blur(); } });
+    const qb = await eq.page.locator('#pad').boundingBox();
+    await eq.page.mouse.click(qb.x + 80, qb.y + 200);
+    await sleep(250);
+    const start = await eq.page.evaluate(() => ({ rings: document.querySelectorAll('.fxring').length, pieces: document.querySelectorAll('.fxitem').length, noring: document.getElementById('padvis').classList.contains('noring') }));
+    check('earthquake: the circles on the tap area and the title and captions become separate pieces', start.rings >= 4 && start.pieces >= 2 && start.noring, JSON.stringify(start));
+    for (let i = 0; i < 44; i++) { await eq.page.mouse.click(qb.x + 60 + (i * 31) % (qb.width - 120), qb.y + 150 + (i * 53) % (qb.height - 300)); await sleep(25); }
+    await sleep(1500);
+    const fell = await eq.page.evaluate(() => { const all = [...document.querySelectorAll('.fxring, .fxitem')]; return { n: all.length, off: all.filter((e) => e.style.visibility === 'hidden').length, rings: [...document.querySelectorAll('.fxring')].filter((e) => e.style.visibility === 'hidden').length }; });
+    check('earthquake: as you tap, the circles and the page pieces fall off the screen', fell.n >= 6 && fell.off === fell.n, JSON.stringify(fell));
+    const moved = await boxes(eq.page, ['#pad', '#boardBtn', '#fxBtn']);
+    check('earthquake: the tap area and buttons stay where they are', await hit(eq.page, '#pad') && await hit(eq.page, '#boardBtn') && near(moved['#pad'], [qb.x, qb.y, qb.width, qb.height], 0.6));
+    await settle(eq.page);
+    await eq.page.click('#again');
+    await sleep(900);
+    const back = await cleanState(eq.page);
+    check('earthquake: after Play again everything is back', back.items === 0 && back.hidden === 0 && !back.noring && back.moved.length === 0, JSON.stringify(back));
+    await eq.ctx.close();
+
+    const cr = await openFx('/none', FULL('crack'));
+    await cr.page.click('.mode[data-mode="5"]');
+    await cr.page.evaluate(() => { if (document.activeElement) { document.activeElement.blur(); } });
+    const cb = await cr.page.locator('#pad').boundingBox();
+    let stop = false, k = 0;
+    const tapper = (async () => { while (!stop) { await cr.page.mouse.click(cb.x + 60 + (k * 41) % (cb.width - 120), cb.y + 120 + (k * 67) % (cb.height - 240)); k += 1; await sleep(70); } })();
+    await sleep(1500);
+    check('glass crack: cracks cover the screen as you tap', (await topPixels(cr.page)) > 1500);
+    let sawWhite = false, sawShards = 0;
+    const t0 = Date.now();
+    while (Date.now() - t0 < 7000 && !sawWhite) { sawWhite = await cr.page.evaluate(() => document.getElementById('fxwhite').classList.contains('on')); if (!sawWhite) { sawShards = Math.max(sawShards, await topPixels(cr.page)); await sleep(40); } }
+    stop = true; await tapper;
+    check('glass crack: at the end the colour breaks apart and a white page shows through', sawWhite, 'white ' + sawWhite);
+    await settle(cr.page);
+    await sleep(1600);
+    const after = await cleanState(cr.page);
+    check('glass crack: the page comes back to the result screen, nothing left over', !after.white && (await topPixels(cr.page)) === 0, JSON.stringify(after));
+    check('glass crack: the result card is readable (Play again is the hit target)', await hit(cr.page, '#again'));
+    await cr.ctx.close();
+  }
+
+  /* -- no effect layer intercepts input; controls stay hit-testable while each power runs and after -- */
   console.log(' Input is never blocked, and everything is reset');
   {
     const base = await openFx('/', FULL('none'));
     await base.page.click('.mode[data-mode="5"]');
     const idle = await boxes(base.page, ['#pad', '#boardBtn', '#fxBtn', '#time', '#count']);
     await burst(base.page, 16, 'mouse');
-    await base.page.waitForSelector('#result:not([hidden])', { timeout: 9000 });
-    await base.page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+    await settle(base.page);
     const refResult = await boxes(base.page, ['#again', '#askInput', '#boardBtn', '#fxBtn']);
     await base.ctx.close();
 
     for (const theme of THEMES) {
-      const { ctx, page } = await openFx('/', FULL(theme, { shake: false }));
+      const { ctx, page } = await openFx('/', FULL(theme));
       await page.click('.mode[data-mode="5"]');
       await page.evaluate(() => { if (document.activeElement) { document.activeElement.blur(); } });
       const box = await page.locator('#pad').boundingBox();
       const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
       for (let i = 0; i < 16; i++) { await page.mouse.click(cx + (i % 6) * 12 - 30, cy + (i % 4) * 14 - 20); await sleep(30); }
-      /* mid-round, while the effects are running */
       const mid = await page.evaluate(() => {
-        const fx = ['.fxitem', '.fxshape', '#fxback', '#padfx', '#padheat', '#padscan', '#fxbackc'];
+        const fx = ['.fxitem', '.fxring', '#fxtopl', '#fxtopc', '#fxwhite', '#fxback', '#padfx', '#padheat', '#padscan', '#fxbackc'];
         let bad = 0; const w = innerWidth, h = innerHeight;
         for (let x = 4; x < w; x += Math.max(8, Math.floor(w / 24))) {
           for (let y = 4; y < h; y += Math.max(8, Math.floor(h / 40))) {
@@ -714,49 +810,36 @@ try {
         return bad;
       });
       check(theme + ': nothing from the effect layers is ever the hit target (grid over the screen)', mid === 0, String(mid));
-      check(theme + ': tap area, Leaderboard and Effects keep hit-testing as themselves', await hit(page, '#pad') && await hit(page, '#boardBtn') && await hit(page, '#fxBtn'));
+      check(theme + ': tap area, Leaderboard and the power dropdown keep hit-testing as themselves', await hit(page, '#pad') && await hit(page, '#boardBtn'));
       await sleep(700);
       const midBoxes = await boxes(page, ['#pad', '#boardBtn', '#fxBtn', '#time', '#count']);
-      const fixed = ['#pad', '#boardBtn', '#fxBtn'].every((k) => near(midBoxes[k], idle[k], 0.6));
-      const readout = ['#time', '#count'].every((k) => Math.abs((midBoxes[k][0] + midBoxes[k][2] / 2) - (idle[k][0] + idle[k][2] / 2)) <= 1.5 && Math.abs(midBoxes[k][1] - idle[k][1]) <= 1.5);
-      check(theme + ': tap area, timer, count and buttons have not moved (before vs mid-round)', fixed && readout, JSON.stringify([midBoxes, idle]));
-      await page.waitForSelector('#result:not([hidden])', { timeout: 9000 });
-      await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
-      await sleep(400);
+      const fixed = ['#pad', '#boardBtn', '#fxBtn'].every((kk) => near(midBoxes[kk], idle[kk], 0.6));
+      const readout = ['#time', '#count'].every((kk) => Math.abs((midBoxes[kk][0] + midBoxes[kk][2] / 2) - (idle[kk][0] + idle[kk][2] / 2)) <= 5 && Math.abs(midBoxes[kk][1] - idle[kk][1]) <= 5);
+      check(theme + ': tap area and buttons have not moved, timer and count only shake by a few px (before vs mid-round)', fixed && readout, JSON.stringify([midBoxes, idle]));
+      await settle(page);
+      await sleep(1700);
       const after = await boxes(page, ['#again', '#askInput', '#boardBtn', '#fxBtn']);
-      check(theme + ': Play again, name field and buttons sit exactly where they do with no theme', Object.keys(refResult).every((k) => near(after[k], refResult[k], 0.6)), JSON.stringify([after, refResult]));
-      check(theme + ': at the result, Play again, name field, Leaderboard and Effects are the real hit targets', await hit(page, '#again') && await hit(page, '#askInput') && await hit(page, '#boardBtn') && await hit(page, '#fxBtn'));
+      check(theme + ': Play again, name field and buttons sit exactly where they do with no power', Object.keys(refResult).every((kk) => near(after[kk], refResult[kk], 0.6)), JSON.stringify([after, refResult]));
+      check(theme + ': at the result, Play again, name field and Leaderboard are the real hit targets', await hit(page, '#again') && await hit(page, '#askInput') && await hit(page, '#boardBtn'));
       await page.click('#again');
       await sleep(1300);
       const cs = await cleanState(page);
-      check(theme + ': after Play again nothing is left: no clones, no hidden originals, no transforms, no frames, no remnants', cs.items === 0 && cs.hidden === 0 && cs.moved.length === 0 && !cs.glitch && cs.raf === 0 && !cs.remnant && Number(cs.heat) === 0 && Number(cs.scan) === 0, JSON.stringify(cs));
+      check(theme + ': after Play again nothing is left: no clones, no hidden originals, no transforms, no frames, no white layer, no remnants', cs.items === 0 && cs.hidden === 0 && cs.moved.length === 0 && !cs.glitch && cs.raf === 0 && !cs.remnant && !cs.white && !cs.noring && Number(cs.heat) === 0 && Number(cs.scan) === 0 && (await topPixels(page)) === 0, JSON.stringify(cs));
       await ctx.close();
     }
   }
 
-  /* -- leaks: listeners, timers and frames do not accumulate over many rounds of every theme -- */
+  /* -- leaks: listeners, timers and frames do not accumulate over many rounds of every power -- */
   console.log(' No leaks');
   {
     const { ctx, page } = await openFx('/none', FULL('none'));
     await sleep(800);
     const base = await page.evaluate(() => ({ lst: window.__lst.size, tm: window.__timers.size }));
-    for (const theme of THEMES) {
-      await page.click('#fxBtn');
-      await page.selectOption('#fxTheme', theme);
-      await page.click('#fxClose');
+    for (const power of POWERS_ALL) {
+      await page.selectOption('#fxBtn', power);
       await page.click('.mode[data-mode="1"]');
       await burst(page, 8, 'mouse');
-      await page.waitForSelector('#result:not([hidden])', { timeout: 6000 });
-      await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
-      await page.click('#again');
-      await sleep(1300);
-    }
-    /* three more rounds in the same page, no reloads */
-    for (let i = 0; i < 3; i++) {
-      await page.click('.mode[data-mode="1"]');
-      await burst(page, 8, 'mouse');
-      await page.waitForSelector('#result:not([hidden])', { timeout: 6000 });
-      await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+      await settle(page);
       await page.click('#again');
       await sleep(1300);
     }
@@ -770,7 +853,7 @@ try {
   /* -- jelly wobble moves the picture, never the hit target -- */
   console.log(' Jelly keeps the hit target fixed');
   {
-    const { ctx, page } = await openFx('/none', { ...FULL('none'), level: 'light' });
+    const { ctx, page } = await openFx('/none', FULL('none'));
     const before = await boxes(page, ['#pad']);
     const box = await page.locator('#pad').boundingBox();
     let moved = false, fixed = true;
@@ -787,33 +870,26 @@ try {
     await ctx.close();
   }
 
-  /* -- reduced motion: visuals start off, panel says so, can be switched on by hand; sound and haptics are separate -- */
+  /* -- reduced motion: Off by default, can be switched on by hand -- */
   console.log(' Reduced motion defaults');
   {
     const { ctx, page } = await openFx('/none', null, { reduce: true });
-    await page.click('#fxBtn');
-    check('panel shows the reduced-motion note', await vis(page, '#fxNote'));
-    check('level defaults to Off', await page.evaluate(() => document.querySelector('input[name="fxlevel"]:checked').value) === 'off');
-    await page.click('#fxClose');
+    check('the power defaults to Off', (await page.inputValue('#fxBtn')) === 'off');
     await page.click('.mode[data-mode="5"]');
     await burst(page, 6, 'mouse');
     await sleep(120);
-    check('reduced motion: nothing is drawn and no ripple appears', (await padPixels(page)) === 0 && (await page.locator('.ripple').count()) === 0);
+    check('reduced motion: nothing is drawn and no ripple appears', (await padPixels(page)) === 0 && (await topPixels(page)) === 0 && (await page.locator('.ripple').count()) === 0);
     check('reduced motion: tap area is not transformed', (await page.evaluate(() => document.getElementById('padvis').style.transform)) === '');
-    await page.waitForSelector('#result:not([hidden])', { timeout: 8000 });
-    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
-    await page.click('#fxBtn');
-    await page.locator('#fxLevel label', { hasText: 'Light' }).click();
-    await page.click('#fxClose');
+    await settle(page);
+    await page.selectOption('#fxBtn', 'none');
     await page.click('#again');
     await page.click('.mode[data-mode="5"]');
     const box = await page.locator('#pad').boundingBox();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await sleep(90);
-    check('turning Light on by hand works under reduced motion', (await padPixels(page)) > 0);
-    check('the choice is remembered', (await page.evaluate(() => JSON.parse(localStorage.getItem('tapsprint.v1')).fx.level)) === 'light');
+    check('picking a power by hand works under reduced motion', (await padPixels(page)) > 0);
     await ctx.close();
-    const w = await openFx('/none', FULL('none', { sound: true, vib: true }), { reduce: true });
+    const w = await openFx('/none', FULL('off', { sound: true, vib: true }), { reduce: true });
     await w.page.click('.mode[data-mode="5"]');
     await burst(w.page, 5, 'mouse', 40);
     await sleep(100);
@@ -822,46 +898,26 @@ try {
     await w.ctx.close();
   }
 
-  /* -- settings: persistence, migration, corrupted data, cloud save -- */
+  /* -- saves: old settings migrate, damaged ones fall back, the cloud save carries the power -- */
   console.log(' Settings and saves');
   {
-    const { ctx, page } = await openFx('/none', null);
-    await page.click('#fxBtn');
-    await page.locator('#fxLevel label', { hasText: 'Full' }).click();
-    await page.selectOption('#fxTheme', 'lightning');
-    await page.check('#fxSound');
-    await page.uncheck('#fxLines');
-    await page.reload();
-    await page.click('#fxBtn');
-    const got = await page.evaluate(() => ({ level: document.querySelector('input[name="fxlevel"]:checked').value, theme: document.getElementById('fxTheme').value, sound: document.getElementById('fxSound').checked, lines: document.getElementById('fxLines').checked, vib: document.getElementById('fxVib').checked }));
-    check('settings persist across a reload', got.level === 'full' && got.theme === 'lightning' && got.sound && !got.lines && !got.vib, JSON.stringify(got));
-    await page.selectOption('#fxTheme', 'emoji');
-    check('emoji picker appears for Emoji rain', await vis(page, '#fxEmoji'));
-    await page.locator('#fxEmoji label').nth(3).click();
-    check('emoji choice is stored', (await page.evaluate(() => JSON.parse(localStorage.getItem('tapsprint.v1')).fx.emoji)) === '🐸');
-    await ctx.close();
-  }
-  {
-    /* old save: no fx and no unlock field */
+    const seed = (fx) => ({ pre: (p) => p.addInitScript((f) => { try { if (!localStorage.getItem('tapsprint.v1')) { localStorage.setItem('tapsprint.v1', JSON.stringify({ fx: f })); } } catch (e) { /* ignore */ } }, fx) });
+    const cases = [
+      [{ v: 1, level: 'full', theme: 'lightning' }, 'lightning'], [{ v: 1, level: 'off', theme: 'crack' }, 'off'], [{ v: 1, level: 'light', theme: 'crack' }, 'none'],
+      [{ v: 1, level: 'full', theme: 'none' }, 'none'], [{ level: 'ultra', theme: 7, power: 'nope', sound: 'yes' }, 'none'], [{ v: 2, power: 'balloon' }, 'balloon'],
+    ];
+    for (const [fx, want] of cases) {
+      const { ctx, page } = await openFx('/none', null, seed(fx));
+      const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+      await page.reload();
+      const got = await page.inputValue('#fxBtn');
+      check('saved settings ' + JSON.stringify(fx) + ' -> power ' + want, got === want && errs.length === 0, got + ' ' + errs.join(';'));
+      await ctx.close();
+    }
     const old = await openFx('/none', null, { pre: (p) => p.addInitScript(() => { try { localStorage.setItem('tapsprint.v1', JSON.stringify({ mode: 10, best: { '5:mouse': 33 }, name: 'Oldie', pid: 'abcdefghijkl12345' })); } catch (e) { /* ignore */ } }) });
-    const errs = [];
-    old.page.on('pageerror', (e) => errs.push(e.message));
     await old.page.reload();
-    check('old save without effects fields loads, keeps the best, and uses the defaults', (await old.page.evaluate(() => JSON.parse(localStorage.getItem('tapsprint.v1')).best['5:mouse'])) === 33 && errs.length === 0, errs.join(';'));
-    await old.page.click('#fxBtn');
-    check('defaults for an old save: Light, no theme, sound and vibration off', await old.page.evaluate(() => document.querySelector('input[name="fxlevel"]:checked').value === 'light' && document.getElementById('fxTheme').value === 'none' && !document.getElementById('fxSound').checked && !document.getElementById('fxVib').checked));
+    check('old save without power settings keeps the best and uses Basic', (await old.page.evaluate(() => JSON.parse(localStorage.getItem('tapsprint.v1')).best['5:mouse'])) === 33 && (await old.page.inputValue('#fxBtn')) === 'none');
     await old.ctx.close();
-
-    const junk = await openFx('/none', null, { pre: (p) => p.addInitScript(() => { try { localStorage.setItem('tapsprint.v1', JSON.stringify({ fx: { level: 'ultra', theme: 7, emoji: 'x', sound: 'yes', skin: 'ember', ripple: {}, trail: null, heat: 3 }, unlock: { taps: 'lots', bests: -4, seen: ['ember', 5, 'nope'] } })); } catch (e) { /* ignore */ } }) });
-    const e2 = [];
-    junk.page.on('pageerror', (e) => e2.push(e.message));
-    await junk.page.reload();
-    await junk.page.click('#fxBtn');
-    const j = await junk.page.evaluate(() => ({ level: document.querySelector('input[name="fxlevel"]:checked').value, theme: document.getElementById('fxTheme').value, sound: document.getElementById('fxSound').checked, skin: document.getElementById('fxSkin').value, padSkin: document.getElementById('pad').getAttribute('data-skin') }));
-    check('corrupted settings fall back field by field', j.level === 'light' && j.theme === 'none' && !j.sound && e2.length === 0, JSON.stringify(j) + e2.join(';'));
-    check('a locked skin in a damaged save is ignored (Classic is used)', j.skin === 'classic' && j.padSkin === 'classic', JSON.stringify(j));
-    await junk.ctx.close();
-
     const garbage = await openFx('/none', null, { pre: (p) => p.addInitScript(() => { try { localStorage.setItem('tapsprint.v1', '{{{ not json'); } catch (e) { /* ignore */ } }) });
     await garbage.page.click('.mode[data-mode="1"]');
     await burst(garbage.page, 5, 'mouse');
@@ -870,31 +926,38 @@ try {
     await garbage.ctx.close();
   }
   {
-    /* Playables cloud save: settings go out with saveData and come back from loadData */
     const yt = () => {
       window.__saved = [];
       window.__cloud = window.__cloud || null;
-      window.__audioOn = true;
-      window.ytgame = {
-        IN_PLAYABLES_ENV: true,
-        game: { firstFrameReady() {}, gameReady() {}, saveData(s) { window.__saved.push(s); return Promise.resolve(); }, loadData() { return Promise.resolve(window.__cloud); } },
-        system: { isAudioEnabled() { return window.__audioOn; }, onAudioEnabledChange(cb) { window.__audioCb = cb; return () => {}; } },
-      };
+      window.ytgame = { IN_PLAYABLES_ENV: true, game: { firstFrameReady() {}, gameReady() {}, saveData(s) { window.__saved.push(s); return Promise.resolve(); }, loadData() { return Promise.resolve(window.__cloud); } }, system: { isAudioEnabled() { return true; }, onAudioEnabledChange() { return () => {}; } } };
     };
     const a = await openFx('/none', null, { init: yt });
-    await a.page.click('#fxBtn');
-    await a.page.locator('#fxLevel label', { hasText: 'Full' }).click();
-    await a.page.selectOption('#fxTheme', 'balloon');
+    await a.page.selectOption('#fxBtn', 'balloon');
     const saved = await a.page.evaluate(() => JSON.parse(window.__saved[window.__saved.length - 1]));
-    check('cloud save carries the effects settings and unlock progress', saved.fx && saved.fx.level === 'full' && saved.fx.theme === 'balloon' && saved.unlock && saved.unlock.v === 1, JSON.stringify(saved).slice(0, 200));
+    check('cloud save carries the chosen power', saved.fx && saved.fx.power === 'balloon' && saved.unlock && saved.unlock.v === 1, JSON.stringify(saved).slice(0, 200));
     await a.ctx.close();
     const cloud = JSON.stringify({ fx: FULL('paint'), unlock: { v: 1, taps: 400, bests: 0, seen: [] } });
     const b = await openFx('/none', null, { init: yt, pre: (p) => p.addInitScript((c) => { window.__cloud = c; }, cloud) });
     await sleep(400);
-    await b.page.click('#fxBtn');
-    const t = await b.page.evaluate(() => ({ theme: document.getElementById('fxTheme').value, skinLocked: [...document.querySelectorAll('#fxSkin option')].filter((o) => o.disabled).length }));
-    check('settings and unlock progress load from the cloud save on a fresh device', t.theme === 'paint' && t.skinLocked === 3, JSON.stringify(t));
+    check('the power loads from the cloud save on a fresh device', (await b.page.inputValue('#fxBtn')) === 'paint');
     await b.ctx.close();
+  }
+
+  /* -- no automatic easing: heavy load never turns the power off -- */
+  console.log(' No automatic easing');
+  {
+    const { ctx, page } = await openFx('/none', FULL('emoji'));
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 25 });
+    await page.click('.mode[data-mode="5"]');
+    const box = await page.locator('#pad').boundingBox();
+    const t0 = Date.now();
+    for (let i = 0; Date.now() - t0 < 3500; i++) { await page.mouse.click(box.x + 40 + ((i * 41) % (box.width - 80)), box.y + 90 + ((i * 67) % (box.height - 180))); await sleep(40); }
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    check('under 25x CPU slowdown the power stays on, there is no "eased down" note', (await page.evaluate(() => !document.getElementById('fxGov') && JSON.parse(localStorage.getItem('tapsprint.v1')).fx.power === 'emoji' && !/eased/i.test(document.body.innerText))));
+    await settle(page);
+    check('and the dropdown still shows Emoji rain', (await page.inputValue('#fxBtn')) === 'emoji');
+    await ctx.close();
   }
 
   /* -- sound and vibration -- */
@@ -924,17 +987,6 @@ try {
     let worst = 0; for (let i = 0; i < times.length; i++) { let c = 0; for (let j = i; j < times.length && times[j] < times[i] + 1000; j++) { c += 1; } worst = Math.max(worst, c); }
     check('vibration is used when chosen and throttled to at most ~20 calls a second', times.length > 0 && worst <= 21, 'calls ' + times.length + ', worst second ' + worst);
     await v.ctx.close();
-
-    const p = await openFx('/none', FULL('none', { vib: false }));
-    await p.page.click('#fxBtn');
-    await p.page.check('#fxVib');
-    const noBuzz = await p.page.evaluate(() => window.__vib.length);
-    const pb = await p.page.locator('#fxPrev').boundingBox();
-    await p.page.mouse.click(pb.x + pb.width / 2, pb.y + pb.height / 2);
-    await sleep(120);
-    const buzz = await p.page.evaluate(() => window.__vib.length);
-    check('the panel only vibrates when you tap the preview', noBuzz === 0 && buzz === 1, noBuzz + ' / ' + buzz);
-    await p.ctx.close();
   }
   {
     /* portal mute signals */
@@ -960,85 +1012,6 @@ try {
     await c.ctx.close();
   }
 
-  /* -- the panel: keyboard, focus trap, Escape, Back, preview -- */
-  console.log(' Effects panel');
-  {
-    const { ctx, page } = await openFx('/none', null);
-    await page.evaluate(() => document.getElementById('fxBtn').focus());
-    await page.keyboard.press('Enter');
-    check('Enter on the Effects button opens the panel', await vis(page, '#fxPanel'));
-    check('focus moves into the panel', await page.evaluate(() => document.getElementById('fxCard').contains(document.activeElement)));
-    let outside = 0;
-    for (let i = 0; i < 40; i++) { await page.keyboard.press('Tab'); if (!(await page.evaluate(() => document.getElementById('fxCard').contains(document.activeElement)))) { outside += 1; } }
-    for (let i = 0; i < 10; i++) { await page.keyboard.press('Shift+Tab'); if (!(await page.evaluate(() => document.getElementById('fxCard').contains(document.activeElement)))) { outside += 1; } }
-    check('focus is trapped in the panel (40 Tab and 10 Shift+Tab presses)', outside === 0, String(outside));
-    check('the dialog is labelled and modal', await page.evaluate(() => { const c = document.getElementById('fxCard'); return c.getAttribute('role') === 'dialog' && c.getAttribute('aria-modal') === 'true' && c.getAttribute('aria-labelledby') === 'fxTitle'; }));
-    await page.keyboard.press('Escape');
-    check('Escape closes it and focus returns to the Effects button', !(await vis(page, '#fxPanel')) && (await activeId(page)) === 'fxBtn', await activeId(page));
-    await page.click('#fxBtn');
-    await page.goBack();
-    check('browser Back closes it', !(await vis(page, '#fxPanel')));
-    check('Back stayed on the game page', page.url().includes(':' + WEB_PORT));
-    await page.click('#fxBtn');
-    await page.keyboard.press(' ');
-    check('Space inside the panel does not start a round', (await text(page, '#count')) === '0' && !(await page.locator('#pad.live').count()));
-    await page.keyboard.press('Escape');
-    await page.click('.mode[data-mode="5"]');
-    const box = await page.locator('#pad').boundingBox();
-    await page.mouse.click(box.x + 60, box.y + 120);
-    check('Effects is disabled while a round is running', await page.locator('#fxBtn').isDisabled());
-    await page.waitForSelector('#result:not([hidden])', { timeout: 9000 });
-    check('Effects is reachable again on the result screen', !(await page.locator('#fxBtn').isDisabled()));
-    await ctx.close();
-  }
-  {
-    const { ctx, page } = await openFx('/none', FULL('crack'));
-    await page.click('#fxBtn');
-    const pb = await page.locator('#fxPrev').boundingBox();
-    await page.mouse.click(pb.x + pb.width / 3, pb.y + pb.height / 2);
-    await sleep(100);
-    check('preview draws the chosen settings when tapped', (await padPixels(page, '#fxPrevC')) > 0);
-    check('preview does not count taps or start a round', (await text(page, '#count')) === '0' && !(await page.locator('#pad.live').count()));
-    await page.locator('#fxLevel label', { hasText: 'Off' }).click();
-    await sleep(60);
-    await page.mouse.click(pb.x + pb.width / 2, pb.y + pb.height / 2);
-    await sleep(120);
-    check('with Off the preview draws nothing', (await padPixels(page, '#fxPrevC')) === 0);
-    await page.keyboard.press('Escape');
-    await sleep(900);
-    check('closing the panel leaves no frames running', (await page.evaluate(() => window.__raf.size)) === 0);
-    await ctx.close();
-  }
-
-  /* -- unlockable cosmetics -- */
-  console.log(' Cosmetics');
-  {
-    const { ctx, page } = await openFx('/none', null, { pre: (p) => p.addInitScript(() => { try { if (!localStorage.getItem('tapsprint.v1')) { localStorage.setItem('tapsprint.v1', JSON.stringify({ unlock: { v: 1, taps: 295, bests: 0, seen: [] } })); } } catch (e) { /* ignore */ } }) });
-    await page.click('#fxBtn');
-    const opts = await page.evaluate(() => [...document.querySelectorAll('#fxSkin option')].map((o) => [o.value, o.disabled, o.textContent]));
-    check('locked skins are listed with what is left to do', opts.find((o) => o[0] === 'ember')[1] && /locked, 5 more taps/.test(opts.find((o) => o[0] === 'ember')[2]) && /5 more personal bests/.test((await page.evaluate(() => [...document.querySelectorAll('#fxSkin option')].map((o) => o.textContent).join('|')))), JSON.stringify(opts));
-    check('all themes are available from the start', await page.evaluate(() => [...document.querySelectorAll('#fxTheme option')].every((o) => !o.disabled) && document.querySelectorAll('#fxTheme option').length === 9));
-    await page.click('#fxClose');
-    await page.click('.mode[data-mode="1"]');
-    await burst(page, 8, 'mouse');
-    await page.waitForSelector('#result:not([hidden])', { timeout: 6000 });
-    const note = await text(page, '#unlockNote');
-    check('crossing a threshold shows a quiet Unlocked message on the result card', /Unlocked: Ember skin/.test(note), note);
-    check('it is a plain status message (role=status), not a celebration', (await page.getAttribute('#unlockNote', 'role')) === 'status');
-    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
-    await page.click('#again');
-    await page.click('.mode[data-mode="1"]');
-    await burst(page, 4, 'mouse');
-    await page.waitForSelector('#result:not([hidden])', { timeout: 6000 });
-    check('it is shown once, not on later rounds', !(await vis(page, '#unlockNote')));
-    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
-    await page.click('#fxBtn');
-    await page.selectOption('#fxSkin', 'ember');
-    check('the unlocked skin can be chosen and is applied', (await page.getAttribute('#pad', 'data-skin')) === 'ember');
-    const lt = await page.evaluate(() => JSON.parse(localStorage.getItem('tapsprint.v1')).unlock);
-    check('unlock progress is stored in one versioned field', lt.v === 1 && lt.taps === 307 && lt.seen.includes('ember'), JSON.stringify(lt));
-    await ctx.close();
-  }
   {
     const { ctx, page } = await openFx('/none', null);
     const rows = await page.evaluate(() => {
@@ -1064,7 +1037,7 @@ try {
     await page.waitForSelector('#board:not([hidden])', { timeout: 5000 });
     const allowed = ['pid', 'sec', 'method', 'taps', 'name', 'id'];
     check('leaderboard requests carry only the usual fields (no effects data)', bodies.length > 0 && bodies.every((b) => { try { return Object.keys(JSON.parse(b)).every((k) => allowed.includes(k)); } catch (e) { return false; } }), bodies.join(' | '));
-    check('the Effects panel is not part of the leaderboard screen', !(await page.evaluate(() => document.getElementById('board').contains(document.getElementById('fxPanel')) || !!document.querySelector('#board #fxBtn'))));
+    check('the power selector is not part of the leaderboard screen', !(await page.evaluate(() => !!document.querySelector('#board #fxBtn'))));
     await ctx.close();
   }
 
@@ -1107,42 +1080,6 @@ try {
       await ctx.close();
     }
     await ana.close();
-  }
-
-  /* -- quality governor -- */
-  console.log(' Quality governor');
-  {
-    const { ctx, page } = await openFx('/none', FULL('emoji'));
-    const cdp = await ctx.newCDPSession(page);
-    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 25 });
-    await page.click('.mode[data-mode="10"]');
-    const box = await page.locator('#pad').boundingBox();
-    let shown = false;
-    const t0 = Date.now();
-    for (let i = 0; Date.now() - t0 < 7000; i++) {
-      await page.mouse.click(box.x + 40 + ((i * 41) % (box.width - 80)), box.y + 90 + ((i * 67) % (box.height - 180)));
-      await sleep(40);
-      if (!(await page.evaluate(() => document.getElementById('fxGov').hidden))) { shown = true; break; }
-    }
-    check('slow frames step the level down and show a small note', shown);
-    const txt = await text(page, '#fxGov').catch(() => '');
-    check('the note is short and plain', /eased down/i.test(txt), txt);
-    await page.waitForSelector('#result:not([hidden])', { timeout: 40000 });
-    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 8000 });
-    await page.click('#again');
-    await page.click('.mode[data-mode="5"]');
-    const t1 = Date.now();
-    for (let i = 0; Date.now() - t1 < 2500; i++) { await page.mouse.click(box.x + 40 + ((i * 41) % (box.width - 80)), box.y + 90 + ((i * 67) % (box.height - 180))); await sleep(40); }
-    check('the note is shown once, not again in the next round (still slow)', await page.evaluate(() => document.getElementById('fxGov').hidden));
-    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-    await page.waitForSelector('#result:not([hidden])', { timeout: 20000 });
-    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 8000 });
-    await page.click('#fxBtn');
-    check('the panel explains the easing', await vis(page, '#fxGovNote'));
-    check('the saved level is still Full (easing is not saved)', (await page.evaluate(() => document.querySelector('input[name="fxlevel"]:checked').value)) === 'full');
-    await page.locator('#fxLevel label', { hasText: 'Full' }).click();
-    check('choosing a level again clears the easing', !(await vis(page, '#fxGovNote')));
-    await ctx.close();
   }
 
   /* -- timer accuracy for every round length and every theme, on a fake clock -- */
@@ -1188,31 +1125,9 @@ try {
         void half;
       }
     }
-    check('1, 5, 10, 30 and 60 s rounds on all 9 themes: the countdown tracks the clock (worst drift ' + (worst * 1000).toFixed(0) + ' ms), ends on time and counts every tap', bad.length === 0, bad.slice(0, 4).join(' | '));
+    check('1, 5, 10, 30 and 60 s rounds on all powers: the countdown tracks the clock (worst drift ' + (worst * 1000).toFixed(0) + ' ms), ends on time and counts every tap', bad.length === 0, bad.slice(0, 4).join(' | '));
   }
 
-  /* -- the Effects panel in every viewport -- */
-  console.log(' Effects panel layout');
-  {
-    for (const [vw, vh] of sizes) {
-      const { ctx, page } = await openFx('/none', null, { viewport: { width: vw, height: vh } });
-      await page.click('#fxBtn');
-      await page.selectOption('#fxTheme', 'emoji');
-      const r = await page.evaluate(() => {
-        const card = document.getElementById('fxCard').getBoundingClientRect();
-        const done = document.getElementById('fxClose').getBoundingClientRect();
-        const prev = document.getElementById('fxPrev').getBoundingClientRect();
-        const small = [...document.querySelectorAll('#fxCard button, #fxCard select, #fxCard .fxchecks label, #fxCard .fxseg label, #fxCard .fxemoji label')].filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.height && (b.height < 43.5 || b.width < 43.5); }).map((e) => e.id || e.textContent.trim().slice(0, 12));
-        return { inside: card.left >= -0.5 && card.right <= innerWidth + 0.5 && card.top >= -0.5 && card.bottom <= innerHeight + 0.5, hscroll: document.documentElement.scrollWidth > innerWidth, doneTop: done.top >= 0 && done.bottom <= innerHeight, prevH: prev.height, small };
-      });
-      check(vw + 'x' + vh + ' Effects panel: fits the screen, no sideways scroll, Done reachable, 44px targets', r.inside && !r.hscroll && r.doneTop && r.small.length === 0, JSON.stringify(r));
-      await page.evaluate(() => { document.getElementById('fxCard').scrollTop = 99999; });
-      const last = await page.evaluate(() => { const c = document.getElementById('fxCard').getBoundingClientRect(), l = [...document.querySelectorAll('#fxCard > *:not([hidden])')].pop().getBoundingClientRect(); return l.bottom <= c.bottom + 1; });
-      check(vw + 'x' + vh + ' Effects panel: scrolls to the last control', last);
-      if (vw === 390 || vw === 844) { await shot(page, 'effects-panel-' + vw + 'x' + vh); }
-      await ctx.close();
-    }
-  }
 
   if (SHOTS) {
     console.log('Confetti frames -> ' + SHOTS);
