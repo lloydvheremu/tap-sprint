@@ -31,6 +31,10 @@ The result screen always leads to one next step. **Play again** is the biggest b
 
 The board is reachable any time from the Leaderboard button in the dock. Back, Escape and the browser Back button all close it. On phones, while the keyboard is open for the name field, the header, round picker and dock hide so the field and Post button stay visible.
 
+A **new best** on a preset round (including the first score on each new board, such as your first 30 sec Mouse score) plays a 3 second confetti burst once, right after the round. Custom rounds and non-best rounds never do. With reduced motion on there is no confetti; the "New best" badge gets a brief static outline instead.
+
+The call to action pulses gently: the idle "Tap anywhere to start" hint, and the "Play again" label once its lock ends (not while the name field has focus). It is an opacity fade between 100 and 70 percent about once a second, so it never flashes. With reduced motion it is underlined instead.
+
 Tests: `npm i` then `npm test` runs a Playwright (Chrome) suite against a temporary local server. It covers the flows above, the input methods, the keyboard-only path and a sweep of screen sizes. Set `SHOTS_DIR` to save screenshots.
 
 ## Input methods and the leaderboard filter
