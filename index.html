@@ -3051,8 +3051,9 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
       if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) { var r = $('fxPrev').getBoundingClientRect(); previewTap(r.left + r.width / 2, r.top + r.height / 2); } }
     });
     function changed() { renderPanel(); if (prevSt) { prevSt.end(); prevSt.reset(); prevSt.deco.release(); prevSt.refresh(); prevSt.useThemeNow(); } }
+    /* click, not change: picking the level that is already on must still lift an automatic easing */
     [].forEach.call(document.querySelectorAll('input[name="fxlevel"]'), function (r) {
-      r.addEventListener('change', function () { if (r.checked) { gov.cap = 2; gov.noted = false; setCfg('level', r.value); changed(); } });
+      r.addEventListener('click', function () { if (r.checked) { gov.cap = 2; gov.noted = false; setCfg('level', r.value); changed(); } });
     });
     $('fxTheme').addEventListener('change', function () { setCfg('theme', this.value); changed(); });
     $('fxEmoji').addEventListener('change', function (e) { if (e.target && e.target.name === 'fxemoji') { setCfg('emoji', e.target.value); renderPanel(); } });
