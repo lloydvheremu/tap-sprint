@@ -9,6 +9,7 @@
     "url": "git+ssh://git@github.com/lloydvheremu/tap-sprint.git"
   },
   "author": "lloydvheremu",
+  "license": "MIT",
   "engines": {
     "node": ">=18"
   },
