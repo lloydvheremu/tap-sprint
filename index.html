@@ -169,6 +169,17 @@ body {
 .pad, .result, .board { position: absolute; inset: 0; border-radius: 14px; }
 
 .pad {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+/* The pad is the fixed hit target. Everything you see lives in .padvis, so effects can move it without moving the target. */
+.padvis {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -177,11 +188,6 @@ body {
   background-color: var(--accent);
   background-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 54px, var(--ring) 54px 56px);
   color: var(--on-accent);
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  touch-action: none;
 }
 .pad-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; }
 .tag {
@@ -632,7 +638,7 @@ body {
   .mode .n { font-size: 20px; }
   .mode .n.long { font-size: 16px; }
   .stage { min-height: 150px; }
-  .pad { padding: 12px 14px 22px; }
+  .padvis { padding: 12px 14px 22px; }
   .time { font-size: clamp(32px, 9vw, 48px); }
   .count { font-size: clamp(72px, min(40vw, 34vh), 200px); }
   .btn { min-height: 44px; }
@@ -708,19 +714,21 @@ body {
 
   <div class="stage">
     <div id="pad" class="pad" role="button" tabindex="0" aria-label="Tap area">
-      <div class="pad-top">
-        <span id="tag" class="tag">5 sec round</span>
-        <span class="clock"><span id="time" class="time">5.00</span><span class="sec">sec</span></span>
+      <div id="padvis" class="padvis">
+        <div class="pad-top">
+          <span id="tag" class="tag">5 sec round</span>
+          <span class="clock"><span id="time" class="time">5.00</span><span class="sec">sec</span></span>
+        </div>
+        <div class="mid">
+          <div id="count" class="count">0</div>
+          <div class="unit">taps</div>
+        </div>
+        <div class="pad-bottom">
+          <div id="hint" class="hint">Tap anywhere to start</div>
+          <div id="hint2" class="hint2">Click, right-click or press Space works too. Your first tap starts the clock.</div>
+        </div>
+        <div class="bar"><i id="fill"></i></div>
       </div>
-      <div class="mid">
-        <div id="count" class="count">0</div>
-        <div class="unit">taps</div>
-      </div>
-      <div class="pad-bottom">
-        <div id="hint" class="hint">Tap anywhere to start</div>
-        <div id="hint2" class="hint2">Click, right-click or press Space works too. Your first tap starts the clock.</div>
-      </div>
-      <div class="bar"><i id="fill"></i></div>
     </div>
 
     <section id="result" class="result" role="region" aria-label="Round result" tabindex="-1" hidden>
@@ -824,7 +832,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
   function $(id) { return document.getElementById(id); }
-  var pad = $('pad'), countEl = $('count'), timeEl = $('time'), tagEl = $('tag');
+  var pad = $('pad'), padvis = $('padvis'), countEl = $('count'), timeEl = $('time'), tagEl = $('tag');
   var hintEl = $('hint'), hint2El = $('hint2'), fillEl = $('fill');
   var resultEl = $('result'), rankEl = $('rank'), badgeEl = $('badge'), cpsEl = $('cps');
   var sumEl = $('sumtext'), noteEl = $('note'), histEl = $('hist'), capEl = $('chartcap');
@@ -1898,7 +1906,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     r.style.left = (x == null ? box.width / 2 : x - box.left) + 'px';
     r.style.top = (y == null ? box.height / 2 : y - box.top) + 'px';
     r.addEventListener('animationend', function () { if (r.parentNode) { r.parentNode.removeChild(r); } });
-    pad.appendChild(r);
+    padvis.appendChild(r);
     ripples.push(r);
     if (ripples.length > 10) {
       var old = ripples.shift();
