@@ -15,6 +15,10 @@
   },
   "scripts": {
     "start": "node leaderboard-server.js",
-    "check": "node --check leaderboard-server.js && cmp index.html tap-sprint-game.html"
+    "check": "node --check leaderboard-server.js && cmp index.html tap-sprint-game.html",
+    "test": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.64.1"
   }
 }

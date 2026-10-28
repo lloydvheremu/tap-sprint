@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
 <title>Tap Sprint</title>
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <style>
@@ -54,7 +54,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
+html, body { height: var(--vvh, 100%); }
 body {
   margin: 0;
   background: var(--bg);
@@ -267,7 +267,12 @@ body {
   display: flex;
   flex-direction: column;
 }
-.result { padding: 20px; gap: 14px; }
+.result { padding: 20px; gap: 12px; animation: rise 0.26s ease-out both; }
+.result:focus, .board h2:focus { outline: none; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+.result .cps { animation: pop 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.05s both; transform-origin: left bottom; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .res-head { display: flex; align-items: center; gap: 10px; min-height: 26px; }
 .rank {
   font-family: var(--f-mono);
@@ -301,7 +306,39 @@ body {
 .cps-unit { font-family: var(--f-mono); font-weight: 700; font-size: 18px; letter-spacing: 0.14em; color: var(--muted); }
 .summary { margin: 0; font-size: 18px; font-weight: 600; }
 .note { margin: 0; color: var(--muted); font-size: 14px; }
-.lbline { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; font-size: 13px; color: var(--muted); }
+.poststatus { margin: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 0 10px; min-height: 44px; font-size: 15px; font-weight: 600; color: var(--ink); animation: rise 0.22s ease-out both; }
+.poststatus.bad { color: var(--bad); }
+.poststatus .linkbtn { margin: -10px 0; }
+.ask {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 8px;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg);
+  animation: rise 0.22s ease-out both;
+}
+.ask.locked { pointer-events: none; }
+.ask label { font-family: var(--f-mono); font-weight: 700; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); }
+.askrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.askrow input {
+  flex: 2 1 150px;
+  min-width: 0;
+  min-height: 48px;
+  font-family: var(--f-body);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.askrow input[aria-invalid="true"] { border-color: var(--bad); }
+.askrow .btn { flex: 1 1 140px; min-height: 48px; padding: 8px 14px; font-size: 15px; white-space: nowrap; }
+.askmsg { margin: 0; min-height: 1.2em; font-size: 13px; color: var(--muted); }
+.askmsg.bad { color: var(--bad); }
 .linkbtn {
   appearance: none;
   border: 0;
@@ -311,11 +348,12 @@ body {
   font-weight: 700;
   font-size: 13px;
   text-decoration: underline;
-  min-height: 32px;
-  padding: 4px 0;
+  min-height: 44px;
+  padding: 4px 6px;
   cursor: pointer;
 }
 .chart { margin-top: auto; }
+.result .again { flex: none; margin-top: 4px; }
 .chartcap {
   margin: 0 0 6px;
   font-family: var(--f-mono);
@@ -356,8 +394,29 @@ body {
 }
 .btn.small { min-height: 44px; padding: 8px 16px; font-size: 14px; }
 .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn.primary {
+  width: 100%;
+  min-height: 64px;
+  font-size: 22px;
+  letter-spacing: 0.1em;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn.primary:focus-visible { outline-color: var(--ink); }
+/* Short lock after a round so stray taps cannot hit a button: the button is dimmed and fills left to right. */
+.btn { position: relative; overflow: hidden; }
+.btn.locking:disabled { opacity: 0.6; cursor: wait; }
+.btn.locking::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.34);
+  transform-origin: left center;
+  animation: lockfill var(--lock, 800ms) linear forwards;
+}
+@keyframes lockfill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
-.dock { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 40px; }
+.dock { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
 .bestline {
   min-width: 0;
   font-family: var(--f-mono);
@@ -381,14 +440,27 @@ body {
   font-size: 14px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 14px;
   border-radius: 8px;
   cursor: pointer;
 }
 .ghost:disabled { opacity: 0.35; cursor: not-allowed; }
 
-.board { padding: 14px; gap: 10px; }
+.board { padding: 14px; gap: 10px; overflow: hidden; animation: rise 0.24s ease-out both; }
+.boardscroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; }
+.boardfoot { flex: none; }
+.rankbanner {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  font-size: 15px;
+  animation: rise 0.22s ease-out both;
+}
+.board h2:focus-visible { outline: 3px solid var(--signal); }
 .board-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .board h2 {
   margin: 0;
@@ -407,7 +479,7 @@ body {
   font-family: var(--f-mono);
   font-weight: 700;
   font-size: 14px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px 0;
   cursor: pointer;
 }
@@ -424,7 +496,7 @@ body {
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  min-height: 38px;
+  min-height: 44px;
   padding: 6px 0;
   cursor: pointer;
 }
@@ -449,8 +521,9 @@ body {
   font: inherit;
   font-weight: 600;
   text-align: left;
-  padding: 4px 0;
-  margin: -4px 0;
+  padding: 12px 0;
+  margin: -12px 0;
+  min-height: 44px;
   cursor: pointer;
 }
 .rows .sub { grid-column: 2 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
@@ -476,8 +549,8 @@ body {
   font-weight: 700;
   font-size: 12px;
   text-decoration: underline;
-  min-height: 28px;
-  padding: 2px 0;
+  min-height: 44px;
+  padding: 2px 6px;
   cursor: pointer;
 }
 .rep:disabled { color: var(--muted); text-decoration: none; cursor: default; }
@@ -485,11 +558,13 @@ body {
 .rows .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .rows .sc { font-family: var(--f-display); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
 .rows .tp { min-width: 64px; text-align: right; font-family: var(--f-mono); font-weight: 500; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.rows li.mine { background: var(--bg); }
+.rows li.mine { background: var(--bg); box-shadow: inset 4px 0 0 var(--signal); }
+.rows li.mine.flash { animation: flash 2s ease-out 1; }
+@keyframes flash { 0%, 35% { background: rgba(255, 90, 43, 0.38); } 100% { background: var(--bg); } }
 .rows li.mine .nm { color: var(--accent-text); }
 .meline { margin: 0; font-size: 13px; color: var(--muted); }
 .meline.bad { color: var(--bad); }
-.nameform { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; }
+.nameform { margin-top: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: none; padding-top: 8px; }
 .nameform label {
   width: 100%;
   font-family: var(--f-mono);
@@ -503,26 +578,49 @@ body {
 .namemsg { width: 100%; min-height: 1.2em; font-size: 12px; color: var(--muted); }
 .namemsg.bad { color: var(--bad); }
 
+/* While the name field has focus (phone keyboard open) the card gets the whole screen. */
+.app.typing .top, .app.typing .modes, .app.typing .custom, .app.typing .dock { display: none; }
+.app.typing .result .chart, .app.typing .result .note, .app.typing .result .res-head { display: none; }
+.app.typing .result .again { margin-top: auto; }
+.app.typing .result { padding: 10px 12px; gap: 6px; }
+.app.typing .result .cps { font-size: 48px; }
+.app.typing .result .summary { display: none; }
+.app.typing .result .ask { padding: 8px; gap: 4px; }
+.app.typing .ask label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.app.typing .askmsg:empty { display: none; }
+.app.typing .result .btn.primary { min-height: 48px; font-size: 18px; }
+
+/* Name prompt up: the chart is the first thing to go on screens that are not tall. */
+@media (max-height: 860px) {
+  .cps { font-size: clamp(56px, min(24vw, 15vh), 120px); }
+  .result.asking .chart, .result.asking .note { display: none; }
+  .result.asking .again { margin-top: auto; }
+}
 /* Short screens: tighten the result card so it fits without inner scrolling. */
 @media (max-height: 700px) {
-  .result { padding: 14px; gap: 10px; }
+  .top { display: none; }
+  .result { padding: 14px; gap: 8px; }
   .cps { font-size: clamp(56px, 18vw, 88px); }
   .hist { height: 74px; }
   .col i { height: calc(2px + var(--p, 0) * 40px); }
   .btn { min-height: 48px; }
+  .btn.primary { min-height: 56px; font-size: 20px; }
   .summary { font-size: 16px; }
+  .result.asking .chart, .result.asking .note { display: none; }
+  .result.asking .again { margin-top: auto; }
+  .app.onboard .modes, .app.onboard .custom, .app.onboard .dock { display: none; }
 }
 @media (max-height: 600px) {
-  .result { padding: 12px; gap: 8px; }
+  .result { padding: 12px; gap: 6px; }
   .cps { font-size: clamp(48px, 15vw, 72px); }
   .note { display: none; }
   .hist { height: 62px; }
   .col i { height: calc(2px + var(--p, 0) * 30px); }
   .chartcap { margin-bottom: 4px; }
+  .result.asking .res-head { display: none; }
 }
 /* Very short screens (landscape phones): drop the header and give the pad the room. */
 @media (max-height: 560px) {
-  .top { display: none; }
   .mode { min-height: 44px; flex-direction: row; gap: 4px; }
   .mode .n { font-size: 20px; }
   .mode .n.long { font-size: 16px; }
@@ -530,33 +628,56 @@ body {
   .pad { padding: 12px 14px 22px; }
   .time { font-size: clamp(32px, 9vw, 48px); }
   .count { font-size: clamp(72px, min(40vw, 34vh), 200px); }
-  .btn { min-height: 40px; }
-  .lbline { font-size: 12px; }
+  .btn { min-height: 44px; }
+  .btn.primary { min-height: 48px; font-size: 18px; }
+  .poststatus { min-height: 0; font-size: 14px; }
+  .res-head { min-height: 22px; }
 }
-@media (max-height: 560px) and (min-aspect-ratio: 1/1) {
-  .result { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto auto 1fr; column-gap: 20px; row-gap: 6px; }
+@media (max-height: 560px) and (min-aspect-ratio: 1/1) and (min-width: 600px) {
+  .result { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto auto auto 1fr auto; column-gap: 20px; row-gap: 4px; align-content: start; }
   .res-head { grid-area: 1 / 1; }
   .res-main { grid-area: 2 / 1; }
   .summary { grid-area: 3 / 1; }
-  .lbline { grid-area: 4 / 1; }
-  .btn { grid-area: 5 / 1; align-self: end; }
+  .ask { grid-area: 4 / 1; }
+  .poststatus { grid-area: 6 / 2; align-self: end; min-height: 48px; }
+  .result .again { grid-area: 6 / 1; align-self: end; margin-top: 0; }
   .chart { grid-area: 1 / 2 / 6 / 3; align-self: center; margin-top: 0; }
-}
+  .hist { height: 54px; }
+  .col i { height: calc(2px + var(--p, 0) * 24px); }
+  .result.asking .chart { display: none; }
+  .result.asking .res-head, .result.asking .summary { display: none; }
+  .result.asking .res-main { grid-area: 1 / 1; }
+  .result.asking .ask { grid-area: 2 / 1 / 6 / 3; align-self: start; }
+  .result.asking .cps { font-size: clamp(40px, 11vw, 56px); }
+  .app.typing .result { grid-template-rows: auto auto; align-content: stretch; }
+  .app.typing .result .res-main { grid-area: 1 / 1; align-self: center; }
+  .app.typing .result.asking .ask { grid-area: 1 / 2; align-self: center; }
+  .app.typing .result .again { grid-area: 2 / 1 / 3 / 3; align-self: end; }
 
-@media (max-height: 420px) and (min-aspect-ratio: 1/1) {
-  .result { padding: 8px 12px; row-gap: 4px; }
+  /* Board: controls on the left, scrolling rows on the right. */
+  .board { display: grid; grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); grid-template-rows: auto auto auto auto 1fr auto; column-gap: 14px; row-gap: 8px; }
+  .board-head { grid-area: 1 / 1; }
+  .tabs { grid-area: 2 / 1; }
+  .mtabs { grid-area: 3 / 1; }
+  .rankbanner { grid-area: 4 / 1; }
+  .boardscroll { grid-area: 1 / 2 / 7 / 3; }
+  .boardfoot { grid-area: 6 / 1; align-self: end; }
+}
+@media (max-height: 420px) and (min-aspect-ratio: 1/1) and (min-width: 600px) {
+  .result { padding: 8px 12px; }
   .cps { font-size: clamp(40px, 11vw, 56px); }
-  .btn { min-height: 36px; }
-  .lbline .btn, .lbline button { min-height: 28px; }
+  .btn.primary { min-height: 44px; font-size: 17px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ripple { display: none; }
+  .result, .board, .result .cps, .poststatus, .ask, .rankbanner, .rows li.mine.flash { animation: none; }
+  .btn.locking::after { animation: none; transform: scaleX(0.5); }
 }
 </style>
 </head>
 <body>
-<main class="app">
+<main id="app" class="app">
   <header class="top">
     <h1 class="brand">Tap Sprint</h1>
     <span class="cap">Tap speed test</span>
@@ -594,7 +715,7 @@ body {
       <div class="bar"><i id="fill"></i></div>
     </div>
 
-    <section id="result" class="result" aria-live="polite" hidden>
+    <section id="result" class="result" role="region" aria-label="Round result" tabindex="-1" hidden>
       <div class="res-head">
         <span id="rank" class="rank">Steady</span>
         <span id="badge" class="badge" hidden>New best</span>
@@ -605,18 +726,26 @@ body {
       </div>
       <p id="summary" class="summary"><span id="sumtext"></span> <span id="methodTag" class="methodtag"></span></p>
       <p id="note" class="note"></p>
-      <p id="lbline" class="lbline" hidden><span id="lbtext"></span><button id="nameBtn" class="linkbtn" type="button" hidden>Add name</button></p>
+      <p id="postStatus" class="poststatus" hidden><span id="postText"></span><button id="postAct" class="linkbtn" type="button" hidden></button></p>
+      <form id="askForm" class="ask" autocomplete="off" hidden>
+        <label id="askLabel" for="askInput">Add a name to post this score</label>
+        <div class="askrow">
+          <input id="askInput" type="text" maxlength="16" spellcheck="false" autocomplete="off" autocapitalize="off" enterkeyhint="send" aria-describedby="askMsg">
+          <button id="askBtn" class="btn" type="submit">Post my score</button>
+        </div>
+        <p id="askMsg" class="askmsg"></p>
+      </form>
       <div class="chart">
         <p id="chartcap" class="chartcap"></p>
         <div id="hist" class="hist"></div>
         <div class="axis"><span>0 s</span><span id="axisend"></span></div>
       </div>
-      <button id="again" class="btn" type="button">Go again</button>
+      <button id="again" class="btn primary again" type="button">Play again</button>
     </section>
 
     <section id="board" class="board" aria-label="Leaderboard" hidden>
       <div class="board-head">
-        <h2>Leaderboard</h2>
+        <h2 id="boardTitle" tabindex="-1">Leaderboard</h2>
         <button id="boardBack" class="ghost" type="button">Back</button>
       </div>
       <div class="tabs" role="tablist" aria-label="Leaderboard round length">
@@ -633,18 +762,24 @@ body {
         <button class="mtab" role="tab" type="button" data-method="key" aria-selected="false" aria-label="Keyboard">Keys</button>
         <button class="mtab" role="tab" type="button" data-method="combo" aria-selected="false" aria-label="Mixed, mouse and keyboard together">Mixed</button>
       </div>
-      <p id="boardMsg" class="boardmsg">Loading…</p>
-      <button id="boardRetry" class="linkbtn" type="button" hidden>Try again</button>
-      <ol id="rows" class="rows"></ol>
-      <p id="repMsg" class="meline" role="status" hidden></p>
-      <p id="meLine" class="meline" hidden></p>
-      <p id="whoLine" class="meline" hidden></p>
-      <form id="nameForm" class="nameform" autocomplete="off">
-        <label for="nameInput">Your name</label>
-        <input id="nameInput" type="text" maxlength="16" spellcheck="false" autocomplete="off" autocapitalize="off">
-        <button class="btn small" type="submit">Save</button>
-        <span id="nameMsg" class="namemsg" role="status"></span>
-      </form>
+      <p id="rankBanner" class="rankbanner" hidden></p>
+      <div id="boardScroll" class="boardscroll">
+        <p id="boardMsg" class="boardmsg">Loading…</p>
+        <button id="boardRetry" class="linkbtn" type="button" hidden>Try again</button>
+        <ol id="rows" class="rows"></ol>
+        <p id="repMsg" class="meline" role="status" hidden></p>
+        <p id="meLine" class="meline" hidden></p>
+        <p id="whoLine" class="meline" hidden><span id="whoText"></span> <button id="changeName" class="linkbtn" type="button" hidden>Change name</button></p>
+        <form id="nameForm" class="nameform" autocomplete="off">
+          <label for="nameInput">Your name</label>
+          <input id="nameInput" type="text" maxlength="16" spellcheck="false" autocomplete="off" autocapitalize="off">
+          <button class="btn small" type="submit">Save</button>
+          <span id="nameMsg" class="namemsg" role="status"></span>
+        </form>
+      </div>
+      <div id="boardFoot" class="boardfoot" hidden>
+        <button id="boardPlay" class="btn primary" type="button">Play again</button>
+      </div>
     </section>
   </div>
 
@@ -652,6 +787,7 @@ body {
     <span id="bestLine" class="bestline"></span>
     <button id="boardBtn" class="ghost" type="button">Leaderboard</button>
   </footer>
+  <p id="announce" class="sr" role="status" aria-live="polite"></p>
 </main>
 
 <script>
@@ -673,6 +809,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   var METHOD_LABEL = { touch: 'Touch', mouse: 'Mouse', key: 'Keyboard', combo: 'Mixed' };
   var FLASH_MS = 500;
   var LOCK_MS = 800;
+  var BOARD_LOCK_MS = 600;
   var CFG = window.TAP_SPRINT_CONFIG || {};
 
   var reduce = false;
@@ -684,7 +821,11 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   var resultEl = $('result'), rankEl = $('rank'), badgeEl = $('badge'), cpsEl = $('cps');
   var sumEl = $('sumtext'), noteEl = $('note'), histEl = $('hist'), capEl = $('chartcap');
   var axisEnd = $('axisend'), againBtn = $('again');
-  var lbline = $('lbline'), lbtext = $('lbtext'), nameBtn = $('nameBtn');
+  var postStatus = $('postStatus'), postText = $('postText'), postAct = $('postAct');
+  var askForm = $('askForm'), askInput = $('askInput'), askBtn = $('askBtn'), askMsg = $('askMsg'), askLabel = $('askLabel');
+  var appEl = $('app'), announceEl = $('announce'), rankBanner = $('rankBanner');
+  var boardFoot = $('boardFoot'), boardPlay = $('boardPlay'), boardTitle = $('boardTitle');
+  var whoText = $('whoText'), changeName = $('changeName');
   var customRow = $('customRow'), customInput = $('customSec'), customHint = $('customHint'), customN = $('customN');
   var bestLine = $('bestLine'), boardBtn = $('boardBtn');
   var boardEl = $('board'), boardBack = $('boardBack'), boardMsg = $('boardMsg'), boardRetry = $('boardRetry');
@@ -704,6 +845,9 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   var raf = 0, tEnd = 0, tShow = 0, tLock = 0;
   var last = { taps: 0, prev: 0, isBest: false, sec: 5, custom: false, method: 'mouse', buckets: [] };
   var ripples = [];
+  var pending = null;            // the score the result screen is posting: { sec, method, taps, rid }
+  var postActFn = null, lockUntil = 0, typingT = 0;
+  var hlNext = false, bannerBase = '', editingName = false, boardPushed = false, skipPop = false;
 
   /* ---- YouTube Playables hooks: inert unless the Playables SDK is present ---- */
   function yt(fn) {
@@ -918,6 +1062,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   }
 
   /* The server refused the name (blocked word or bad format): forget a typed name so the player is asked again. */
+  function nameErr(e) { return !!(e && (e.code === 'name not allowed' || e.code === 'invalid name')); }
   function nameRejected() {
     if (!platformName) {
       store.name = '';
@@ -934,12 +1079,13 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     return platformReady.then(getLB).then(function (lb) {
       if (lb.kind === 'none') { throw new Error('no leaderboard'); }
       return lb.submit(sec, method, taps);
-    }).then(function () {
+    }).then(function (res) {
       var k = bestKey(sec, false, method);
       store.posted[k] = Math.max(store.posted[k] || 0, taps);
       save();
+      return res;
     }, function (e) {
-      if (e && (e.code === 'name not allowed' || e.code === 'invalid name')) { nameRejected(); }
+      if (nameErr(e)) { nameRejected(); }
       throw e;
     });
   }
@@ -1006,6 +1152,15 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     resultSeq += 1;
     state = 'idle';
     boardOpen = false;
+    dropBoardHistory();
+    appEl.classList.remove('onboard');
+    appEl.classList.remove('typing');
+    askForm.hidden = true;
+    postStatus.hidden = true;
+    rankBanner.hidden = true;
+    resultEl.classList.remove('asking');
+    pending = null;
+    hlNext = false;
     taps = 0;
     buckets = [];
     configure();
@@ -1089,10 +1244,104 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     axisEnd.textContent = fmtDur(sec);
   }
 
-  function setLine(text, withNameBtn) {
-    lbtext.textContent = text;
-    nameBtn.hidden = !withNameBtn;
-    lbline.hidden = false;
+  /* A button that cannot be hit for a moment after a round, with a fill that shows it is about to wake up. */
+  function lockBtn(btn, ms) {
+    clearTimeout(btn._lt);
+    if (ms <= 0) { btn.disabled = false; btn.classList.remove('locking'); return; }
+    btn.disabled = true;
+    btn.classList.remove('locking');
+    void btn.offsetWidth;
+    btn.style.setProperty('--lock', ms + 'ms');
+    btn.classList.add('locking');
+    btn._lt = setTimeout(function () { btn.disabled = false; btn.classList.remove('locking'); }, ms);
+  }
+  function announce(text) {
+    announceEl.textContent = '';
+    setTimeout(function () { announceEl.textContent = text; }, 40);
+  }
+  function focusSoft(el) { try { el.focus({ preventScroll: true }); } catch (e) {} }
+
+  function setStatus(text, bad, actLabel, actFn) {
+    postText.textContent = text;
+    postStatus.className = 'poststatus' + (bad ? ' bad' : '');
+    postAct.hidden = !actLabel;
+    postAct.textContent = actLabel || '';
+    postActFn = actFn || null;
+    postStatus.hidden = false;
+    announce(text);
+  }
+  postAct.addEventListener('click', function () { if (postActFn) { postActFn(); } });
+
+  function setAsk(text, bad) {
+    askMsg.textContent = text;
+    askMsg.className = 'askmsg' + (bad ? ' bad' : '');
+    askInput.setAttribute('aria-invalid', bad ? 'true' : 'false');
+    if (text) { announce(text); }
+  }
+  var askWorking = false;
+  function askBusy(on) {
+    askWorking = on;
+    askInput.readOnly = on;
+    askBtn.disabled = on;
+  }
+  function askVisible() { return !askForm.hidden; }
+
+  /* Inline name prompt on the result card. It stays locked until the post-round lock ends. */
+  function showAsk(msg) {
+    var left = Math.max(0, lockUntil - performance.now());
+    askLabel.textContent = 'Add a name to post to the ' + METHOD_LABEL[last.method] + ' leaderboard';
+    postStatus.hidden = true;
+    askForm.hidden = false;
+    resultEl.classList.add('asking');
+    askBusy(false);
+    setAsk(msg || '', !!msg);
+    if (left > 0) {
+      askForm.classList.add('locked');
+      askInput.readOnly = true;
+      lockBtn(askBtn, left);
+    } else {
+      askForm.classList.remove('locked');
+      lockBtn(askBtn, 0);
+      var ae = document.activeElement;
+      if (!ae || ae === document.body || ae === resultEl || ae === againBtn) { focusSoft(askInput); }
+    }
+  }
+
+  function settleFocus() {
+    if (state !== 'result' || boardOpen) { return; }
+    askForm.classList.remove('locked');
+    if (askVisible()) {
+      if (!askWorking) { askInput.readOnly = false; }
+      focusSoft(askInput);
+    } else {
+      focusSoft(againBtn);
+    }
+  }
+
+  function showPosted(job, rank) {
+    askForm.hidden = true;
+    resultEl.classList.remove('asking');
+    appEl.classList.remove('typing');
+    var m = METHOD_LABEL[job.method];
+    var text = rank ? 'Posted. You’re #' + rank + ' on ' + m + ', ' + fmtDur(job.sec) + '.' : 'Posted to the ' + m + ' leaderboard.';
+    setStatus(text, false, 'View leaderboard', function () {
+      openBoard({ sec: job.sec, method: job.method, rank: rank, highlight: true });
+    });
+  }
+
+  function autoPost(job) {
+    setStatus('Posting your score…', false);
+    postScore(job.sec, job.method, job.taps).then(function (res) {
+      if (job.rid !== resultSeq) { return; }
+      showPosted(job, res && res.rank ? res.rank : null);
+    }, function (e) {
+      if (job.rid !== resultSeq) { return; }
+      if (nameErr(e)) {
+        if (platformName) { setStatus('Your name cannot be used on the leaderboard.', true); } else { showAsk('That name is not allowed. Please choose another.'); }
+        return;
+      }
+      setStatus('Could not post this score. It is saved on this device.', true, 'Try again', function () { autoPost(job); });
+    });
   }
 
   function showResult() {
@@ -1117,38 +1366,92 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     renderBest();
     pad.hidden = true;
     boardEl.hidden = true;
+    postStatus.hidden = true;
+    askForm.hidden = true;
+    resultEl.classList.remove('asking');
     resultEl.hidden = false;
     setControlsEnabled(true);
-    againBtn.disabled = true;
-    tLock = setTimeout(function () {
-      againBtn.disabled = false;
-      try { againBtn.focus({ preventScroll: true }); } catch (e) {}
-    }, LOCK_MS);
+    announce(rankFor(cps) + '. ' + last.taps + ' taps in ' + fmtDur(sec) + ', ' + cps.toFixed(1) + ' per second' + (last.isBest ? '. New best.' : '.'));
 
-    /* Leaderboard line */
+    /* Stray taps right after the round must not hit a button or type into the field. */
+    lockUntil = performance.now() + LOCK_MS;
+    lockBtn(againBtn, LOCK_MS);
+    focusSoft(resultEl);
+    clearTimeout(tLock);
+    tLock = setTimeout(settleFocus, LOCK_MS);
+
     var rid = (resultSeq += 1);
-    lbline.hidden = true;
-    nameBtn.hidden = true;
-    var posting = { sec: last.sec, method: last.method, taps: last.taps };
+    var job = { sec: last.sec, method: last.method, taps: last.taps, rid: rid };
+    pending = job;
     Promise.all([getLB(), platformReady]).then(function (arr) {
       var lb = arr[0];
       if (rid !== resultSeq || lb.kind === 'none') { return; }
-      if (last.custom) { setLine('Custom rounds are not ranked on the leaderboard.', false); return; }
+      if (last.custom) { setStatus('Custom rounds are not ranked on the leaderboard.', false); return; }
       if (!last.isBest) { return; }
-      if (!playerName()) { setLine('Add a name to post this score.', true); return; }
-      setLine('Posting your score…', false);
-      postScore(posting.sec, posting.method, posting.taps).then(function () {
-        if (rid === resultSeq) { setLine('Posted to the ' + METHOD_LABEL[posting.method] + ' leaderboard.', false); }
-      }, function (e) {
-        if (rid !== resultSeq) { return; }
-        if (e && (e.code === 'name not allowed' || e.code === 'invalid name')) {
-          setLine(platformName ? 'Your name cannot be used on the leaderboard.' : 'That name is not allowed. Add a new one.', !platformName);
-        } else {
-          setLine('Could not post this score. It is saved on this device.', false);
-        }
-      });
+      if (!playerName()) { showAsk(''); return; }
+      autoPost(job);
     });
   }
+
+  askForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (askBtn.disabled || askInput.readOnly || !pending) { return; }
+    var job = pending;
+    var n = cleanName(askInput.value);
+    if (!n) {
+      setAsk('Use 2 to 16 letters, numbers, spaces, dots, dashes or underscores.', true);
+      focusSoft(askInput);
+      return;
+    }
+    askBusy(true);
+    setAsk('Checking name…', false);
+    platformReady.then(getLB).then(function (lb) {
+      return lb.setName ? lb.setName(n).then(function () { return lb; }) : lb;
+    }).then(function (lb) {
+      store.name = n;
+      save();
+      setAsk('Posting your score…', false);
+      return postScore(job.sec, job.method, job.taps).then(function (res) {
+        syncBests(lb.perDocName);
+        if (job.rid !== resultSeq || state !== 'result') { return; }
+        var rank = res && res.rank ? res.rank : null;
+        showPosted(job, rank);
+        openBoard({ sec: job.sec, method: job.method, rank: rank, auto: true });
+      }, function (err) {
+        if (job.rid !== resultSeq) { return; }
+        askBusy(false);
+        if (nameErr(err)) {
+          setAsk('That name is not allowed. Please choose another.', true);
+          focusSoft(askInput);
+          return;
+        }
+        askForm.hidden = true;
+        resultEl.classList.remove('asking');
+        appEl.classList.remove('typing');
+        setStatus('Name saved, but the score could not be posted. It is saved on this device.', true, 'Try again', function () { autoPost(job); });
+      });
+    }, function (err) {
+      askBusy(false);
+      if (err && err.code === 'name not allowed') {
+        setAsk('That name is not allowed. Please choose another.', true);
+      } else if (err && err.code === 'invalid name') {
+        setAsk('Use 2 to 16 letters, numbers, spaces, dots, dashes or underscores.', true);
+      } else {
+        setAsk('Could not reach the leaderboard to check the name. Try again.', true);
+      }
+      focusSoft(askInput);
+    });
+  });
+  askInput.addEventListener('input', function () {
+    if (askInput.getAttribute('aria-invalid') === 'true') { setAsk('', false); }
+  });
+  /* Keep focus (and the keyboard) on the field when Post is pressed, so the layout does not jump under the finger. */
+  askBtn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  askInput.addEventListener('focus', function () { clearTimeout(typingT); syncViewport(); });
+  askInput.addEventListener('blur', function () {
+    clearTimeout(typingT);
+    typingT = setTimeout(syncViewport, 150);
+  });
 
   /* ---- Leaderboard panel ---- */
   function renderTabs() {
@@ -1243,6 +1546,46 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     }
   }
 
+  /* Name controls on the board: a plain "Posting as" line once a name exists, the form when one is needed. */
+  function syncNameUi(hidden) {
+    var on = !!(boardLB && boardLB.kind !== 'none');
+    if (!on) { nameForm.hidden = true; whoLine.hidden = true; return; }
+    if (platformName) {
+      nameForm.hidden = true;
+      whoLine.hidden = false;
+      whoText.textContent = 'Posting as ' + platformName + '.';
+      changeName.hidden = true;
+      return;
+    }
+    var haveName = !!store.name && !hidden && !editingName;
+    nameForm.hidden = haveName;
+    whoLine.hidden = !haveName;
+    whoText.textContent = haveName ? 'Posting as ' + store.name + '.' : '';
+    changeName.hidden = !haveName;
+  }
+
+  /* After the rows are on screen: highlight and scroll to the player's own row, and fill in the rank banner. */
+  function afterRows(data) {
+    syncNameUi(!!data.hidden);
+    var mine = rowsEl.querySelector('li.mine');
+    if (bannerBase && mine && bannerBase.indexOf('#') < 0) {
+      var idx = [].indexOf.call(rowsEl.children, mine) + 1;
+      showBanner('Posted. You’re #' + idx + ' on ' + METHOD_LABEL[boardMethod] + ', ' + fmtDur(boardSec) + '.');
+    }
+    if (hlNext) {
+      hlNext = false;
+      if (mine) {
+        if (!reduce) { mine.classList.add('flash'); }
+        try { mine.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }); } catch (e) { mine.scrollIntoView(); }
+      }
+    }
+  }
+  function showBanner(text) {
+    rankBanner.textContent = text;
+    rankBanner.hidden = false;
+    announce(text);
+  }
+
   function loadBoard() {
     var my = (boardReq += 1);
     rowsEl.textContent = '';
@@ -1254,15 +1597,13 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     platformReady.then(getLB).then(function (lb) {
       if (my !== boardReq) { return; }
       boardLB = lb;
-      nameForm.hidden = (lb.kind === 'none') || !!platformName;
-      whoLine.hidden = (lb.kind === 'none') || !platformName;
-      whoLine.textContent = platformName ? 'Posting as ' + platformName + '.' : '';
+      syncNameUi(false);
       if (lb.kind === 'none') {
         boardMsg.textContent = 'The global leaderboard is not connected in this copy of the game.';
         return;
       }
       return lb.top(boardSec, boardMethod).then(function (data) {
-        if (my === boardReq) { renderRows(data); }
+        if (my === boardReq) { renderRows(data); afterRows(data); }
       });
     }).catch(function () {
       if (my !== boardReq) { return; }
@@ -1272,47 +1613,120 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     });
   }
 
-  function openBoard() {
+  /* Opening the board adds a history entry so the browser Back button closes it. */
+  function pushBoardHistory() {
+    if (boardPushed) { return; }
+    try { history.pushState({ tapSprint: 'board' }, ''); boardPushed = true; } catch (e) {}
+  }
+  function dropBoardHistory() {
+    if (!boardPushed) { return; }
+    boardPushed = false;
+    skipPop = true;
+    try { history.back(); } catch (e) { skipPop = false; }
+  }
+  window.addEventListener('popstate', function () {
+    if (skipPop) { skipPop = false; return; }
+    if (boardPushed) { boardPushed = false; if (boardOpen) { doCloseBoard(); } }
+  });
+
+  /* o: { sec, method } board to show; rank: the rank just earned; auto: opened by the first name save;
+     highlight: flash the player's row. */
+  function openBoard(o) {
+    o = o || {};
     if (state === 'running' || state === 'done') { return; }
     boardOpen = true;
     pad.hidden = true;
     resultEl.hidden = true;
     boardEl.hidden = false;
-    if (!store.custom && PRESETS.indexOf(store.mode) > -1) { boardSec = store.mode; }
-    boardMethod = activeMethod();     // default filter: what this player used last
+    appEl.classList.add('onboard');
+    appEl.classList.remove('typing');
+    if (o.sec) { boardSec = o.sec; } else if (!store.custom && PRESETS.indexOf(store.mode) > -1) { boardSec = store.mode; }
+    boardMethod = o.method || activeMethod();     // default filter: what this player used last
+    editingName = false;
+    hlNext = !!(o.highlight || o.auto);
+    bannerBase = '';
+    rankBanner.hidden = true;
+    if (o.auto) {
+      bannerBase = o.rank ? '#' : 'Posted';
+      showBanner(o.rank
+        ? 'Posted. You’re #' + o.rank + ' on ' + METHOD_LABEL[boardMethod] + ', ' + fmtDur(boardSec) + '.'
+        : 'Posted to the ' + METHOD_LABEL[boardMethod] + ' leaderboard.');
+    }
+    boardFoot.hidden = state !== 'result';
     renderTabs();
     nameInput.value = store.name;
     nameMsg.textContent = '';
     nameMsg.className = 'namemsg';
     loadBoard();
     syncBests(false);
+    pushBoardHistory();
+    focusSoft(boardTitle);
+    if (o.auto) {
+      /* Arrived without asking (first name save): keep stray Space or Enter presses off Play again for a moment. */
+      lockBtn(boardPlay, BOARD_LOCK_MS);
+      clearTimeout(tLock);
+      tLock = setTimeout(function () {
+        if (boardOpen && state === 'result') { focusSoft(boardPlay); }
+      }, BOARD_LOCK_MS);
+    } else {
+      lockBtn(boardPlay, 0);
+    }
   }
 
-  function closeBoard() {
+  function doCloseBoard() {
     boardOpen = false;
     boardEl.hidden = true;
-    if (state === 'result') { resultEl.hidden = false; } else { pad.hidden = false; }
+    appEl.classList.remove('onboard');
+    clearTimeout(tLock);
+    if (state === 'result') {
+      resultEl.hidden = false;
+      if (againBtn.disabled) { focusSoft(resultEl); tLock = setTimeout(settleFocus, 60 + Math.max(0, lockUntil - performance.now())); } else { settleFocus(); }
+    } else {
+      pad.hidden = false;
+      focusSoft(boardBtn);
+    }
+  }
+  function closeBoard() {
+    if (!boardOpen) { return; }
+    if (boardPushed) {
+      try { history.back(); } catch (e) { boardPushed = false; }
+      setTimeout(function () { if (boardOpen) { boardPushed = false; doCloseBoard(); } }, 400);
+    } else {
+      doCloseBoard();
+    }
   }
 
-  boardBtn.addEventListener('click', openBoard);
+  function playAgain() {
+    resetToIdle();
+    focusSoft(pad);
+  }
+
+  boardBtn.addEventListener('click', function () { openBoard(); });
   boardBack.addEventListener('click', closeBoard);
   boardRetry.addEventListener('click', loadBoard);
-  nameBtn.addEventListener('click', function () {
-    openBoard();
-    try { nameInput.focus({ preventScroll: true }); } catch (e) {}
+  boardPlay.addEventListener('click', function () { if (!boardPlay.disabled) { playAgain(); } });
+  changeName.addEventListener('click', function () {
+    editingName = true;
+    syncNameUi(false);
+    focusSoft(nameInput);
   });
+  function boardChanged() {
+    hlNext = false;
+    bannerBase = '';
+    rankBanner.hidden = true;
+    renderTabs();
+    loadBoard();
+  }
   tabBtns.forEach(function (t) {
     t.addEventListener('click', function () {
       boardSec = Number(t.getAttribute('data-sec'));
-      renderTabs();
-      loadBoard();
+      boardChanged();
     });
   });
   mtabBtns.forEach(function (t) {
     t.addEventListener('click', function () {
       boardMethod = t.getAttribute('data-method');
-      renderTabs();
-      loadBoard();
+      boardChanged();
     });
   });
   nameForm.addEventListener('submit', function (e) {
@@ -1333,6 +1747,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
       save();
       nameMsg.className = 'namemsg';
       nameMsg.textContent = 'Saved.';
+      editingName = false;
       return syncBests(lb.perDocName).then(function () { if (boardOpen) { loadBoard(); } });
     }, function (err) {
       nameMsg.className = 'namemsg bad';
@@ -1410,10 +1825,18 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   pad.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && boardOpen) { e.preventDefault(); closeBoard(); return; }
     if (e.repeat) { return; }
     if (e.key !== ' ' && e.key !== 'Spacebar' && e.key !== 'Enter') { return; }
     if (e.target && e.target.closest && e.target.closest('button, input, textarea, select, a')) { return; }
-    if (state === 'result' || boardOpen) { return; }
+    if (boardOpen) { return; }
+    if (state === 'result') {
+      /* Focus fell to the page: Space or Enter does the one obvious thing, once the post-round lock is over. */
+      e.preventDefault();
+      if (againBtn.disabled) { return; }
+      if (askVisible()) { focusSoft(askInput); } else { playAgain(); }
+      return;
+    }
     e.preventDefault();
     tap(null, null, 'key');
   });
@@ -1460,8 +1883,35 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
 
   againBtn.addEventListener('click', function () {
     if (againBtn.disabled) { return; }
-    resetToIdle();
-    try { pad.focus({ preventScroll: true }); } catch (e) {}
+    playAgain();
+  });
+
+  /* Phone keyboard: when a text field has focus and the visible height has dropped a lot (a soft keyboard is up),
+     size the app to what is visible and give the result card the whole screen. Desktop keeps the full layout. */
+  var baseH = window.innerHeight, baseW = window.innerWidth;
+  function syncViewport() {
+    var vv = window.visualViewport, root = document.documentElement, ae = document.activeElement;
+    var cur = vv ? Math.min(window.innerHeight, vv.height) : window.innerHeight;
+    var typing = ae === askInput || ae === nameInput || ae === customInput;
+    if (window.innerWidth !== baseW) { baseW = window.innerWidth; baseH = Math.max(window.innerHeight, cur); }
+    if (!typing) { baseH = Math.max(window.innerHeight, cur); }
+    var up = typing && baseH - cur > 120;
+    appEl.classList.toggle('typing', up && ae === askInput);
+    if (up) {
+      root.style.setProperty('--vvh', Math.round(cur) + 'px');
+      window.scrollTo(0, 0);
+    } else {
+      root.style.removeProperty('--vvh');
+    }
+  }
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncViewport);
+    window.visualViewport.addEventListener('scroll', syncViewport);
+  }
+  window.addEventListener('resize', syncViewport);
+  [nameInput, customInput].forEach(function (el) {
+    el.addEventListener('focus', syncViewport);
+    el.addEventListener('blur', function () { setTimeout(syncViewport, 150); });
   });
 
   /* ---- Boot ---- */

@@ -21,6 +21,18 @@ Files:
 
 Server settings (environment variables): `PORT`, `HOST`, `DATA_FILE`, `ALLOW_ORIGIN`, `MAX_CPS` (default 25), `POSTS_PER_MINUTE` (default 30 per IP), `REPORTS_PER_MINUTE` (default 10 per IP), `REPORT_HIDE_AT` (default 3), `BLOCKLIST_FILE`, `ADMIN_TOKEN`, and `TRUST_PROXY=1` when behind a reverse proxy.
 
+## After a round
+
+The result screen always leads to one next step. **Play again** is the biggest button (tap, Enter or Space). Right after a round the buttons and the name field are locked for a moment (a fill runs across Play again) so stray taps cannot press them.
+
+- **New best, no name yet** (ranked round, leaderboard connected, no saved or portal name): an inline field asks for a name, with a "Post my score" button. Enter submits. A refused name shows a message on the field and is not saved; a network failure while checking shows a retry message. Once the name is saved and the score posted, the leaderboard opens by itself on the round length and input method just played, with the player's row highlighted and scrolled into view, the rank shown in a banner, and Play again pinned at the bottom.
+- **New best, name known** (saved or portal name): the score is posted and the result shows "Posted. You're #3 on Touch, 5 sec." with a "View leaderboard" link. The board does not open by itself.
+- **Not a new best, custom round, or leaderboard not connected**: no prompt. Custom rounds say they are not ranked.
+
+The board is reachable any time from the Leaderboard button in the dock. Back, Escape and the browser Back button all close it. On phones, while the keyboard is open for the name field, the header, round picker and dock hide so the field and Post button stay visible.
+
+Tests: `npm i` then `npm test` runs a Playwright (Chrome) suite against a temporary local server. It covers the flows above, the input methods, the keyboard-only path and a sweep of screen sizes. Set `SHOTS_DIR` to save screenshots.
+
 ## Input methods and the leaderboard filter
 
 Every round is classed by what the counted taps came from:
