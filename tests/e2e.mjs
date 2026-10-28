@@ -63,8 +63,18 @@ async function seed() {
 await seed();
 
 const browser = await chromium.launch({ executablePath: CHROME, headless: true });
+/* Counts pending animation frames and confetti canvases created, so tests can prove nothing is left running. */
+const TRACK = () => {
+  window.__raf = new Set();
+  window.__canvas = 0;
+  const r = window.requestAnimationFrame.bind(window), c = window.cancelAnimationFrame.bind(window);
+  window.requestAnimationFrame = (f) => { const id = r((ts) => { window.__raf.delete(id); f(ts); }); window.__raf.add(id); return id; };
+  window.cancelAnimationFrame = (id) => { window.__raf.delete(id); c(id); };
+  new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.id === 'confetti') { window.__canvas += 1; } }))).observe(document, { subtree: true, childList: true });
+};
 async function open(url, opts = {}) {
   const ctx = opts.ctx || await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: !!opts.touch, isMobile: !!opts.touch, colorScheme: opts.scheme || 'light', reducedMotion: opts.reduce ? 'reduce' : 'no-preference' });
+  if (!opts.ctx) { await ctx.addInitScript(TRACK); }
   const page = await ctx.newPage();
   await page.goto('http://127.0.0.1:' + WEB_PORT + url);
   return { ctx, page };
@@ -306,6 +316,163 @@ try {
     await ctx.close();
   }
 
+  /* ---------------- 9b. confetti ---------------- */
+  console.log('Confetti');
+  const confettiUp = (page) => page.evaluate(() => !!document.getElementById('confetti'));
+  const created = (page) => page.evaluate(() => window.__canvas);
+  const frames = (page) => page.evaluate(() => window.__raf.size);
+  const badgeShown = (page) => page.evaluate(() => !document.getElementById('badge').hidden);
+  {
+    const { ctx, page } = await open('/portal');
+    await playMouse(page, 4, { noWait: true });
+    await page.waitForSelector('#confetti', { state: 'attached', timeout: 2000 });
+    const t0 = Date.now();
+    check('confetti after a first-ever score', await badgeShown(page));
+    const props = await page.evaluate(() => { const c = document.getElementById('confetti'), a = document.getElementById('again'); return { pe: getComputedStyle(c).pointerEvents, zc: getComputedStyle(c).zIndex, za: getComputedStyle(a).zIndex, above: !!(c.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING) || true }; });
+    check('canvas ignores pointers and sits below the controls', props.pe === 'none' && Number(props.zc) < Number(props.za), JSON.stringify(props));
+    check('canvas does not shift layout (absolute, no extra height)', await page.evaluate(() => { const r = document.getElementById('result'); return r.scrollHeight <= r.clientHeight + 1 && getComputedStyle(document.getElementById('confetti')).position === 'absolute'; }));
+    const hit = await page.evaluate(() => { const r = document.getElementById('again').getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return e && e.closest('#again') ? 'again' : (e && e.id) || e.tagName; });
+    check('elementFromPoint at Play again returns the button while confetti runs', hit === 'again', hit);
+    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+    check('Play again unlocks on time (800 ms) with confetti still running', await confettiUp(page));
+    await page.evaluate(() => { window.__t = performance.now(); });
+    // let this one run to its end first, to measure the duration
+    await page.waitForSelector('#confetti', { state: 'detached', timeout: 5000 });
+    const dur = Date.now() - t0;
+    check('confetti lasts about 3 seconds (' + dur + ' ms measured)', dur > 2400 && dur < 3800, String(dur));
+    check('canvas removed from the DOM and no animation frames left', !(await confettiUp(page)) && (await frames(page)) === 0, 'frames=' + await frames(page));
+    await page.click('#again');
+    check('tapping Play again right after works', await vis(page, '#pad'));
+
+    // a later new best: play more taps than before
+    await playMouse(page, 12, { noWait: true });
+    if (await badgeShown(page)) {
+      await page.waitForSelector('#confetti', { state: 'attached', timeout: 2000 });
+      check('confetti after a later new best', true);
+      await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+      await page.click('#again');
+      await sleep(100);
+      check('tapping Play again early removes the canvas and frames at once', !(await confettiUp(page)) && (await frames(page)) === 0, 'frames=' + await frames(page));
+    } else {
+      check('confetti after a later new best (round was not a best: speed too low to test)', false);
+      await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+      await page.click('#again');
+    }
+    const afterBest = await created(page);
+
+    // not a best: two taps
+    await playMouse(page, 2, { noWait: true });
+    await sleep(700);
+    check('no confetti after a non-best round', !(await badgeShown(page)) && !(await confettiUp(page)) && (await created(page)) === afterBest);
+    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+    await page.click('#again');
+
+    // custom round (first custom score is a "best", but stays calm)
+    await page.click('.mode[data-mode="custom"]');
+    await page.fill('#customSec', '2');
+    const cb = await page.locator('#pad').boundingBox();
+    for (let i = 0; i < 6; i++) { await page.mouse.click(cb.x + cb.width / 2, cb.y + cb.height / 2); }
+    await page.waitForSelector('#result:not([hidden])', { timeout: 8000 });
+    await sleep(700);
+    check('no confetti after a custom round', !(await confettiUp(page)) && (await created(page)) === afterBest);
+    check('exactly two celebrations in this session', (await created(page)) === 2, String(await created(page)));
+    await ctx.close();
+  }
+  {
+    // new board = new best: first 5 sec Mouse score also counts
+    const { ctx, page } = await open('/portal');
+    await playMouse(page, 3, { noWait: true });
+    await page.waitForSelector('#confetti', { state: 'attached', timeout: 2000 });
+    await page.waitForFunction(() => !document.getElementById('again').disabled);
+    await page.click('#again');
+    await page.click('.mode[data-mode="5"]');
+    const b5 = await page.locator('#pad').boundingBox();
+    for (let i = 0; i < 4; i++) { await page.mouse.click(b5.x + b5.width / 2, b5.y + b5.height / 2); }
+    await page.waitForSelector('#result:not([hidden])', { timeout: 9000 });
+    await sleep(500);
+    check('first score on a new board (5 sec Mouse) also celebrates', (await created(page)) === 2 && await confettiUp(page), String(await created(page)));
+    await ctx.close();
+  }
+  {
+    // once per round, even when the board auto-opens after a name save; and the field stays usable under it
+    const { ctx, page } = await open('/');
+    await playMouse(page, 6, { noWait: true });
+    await page.waitForSelector('#confetti', { state: 'attached', timeout: 2000 });
+    await page.waitForFunction(() => document.activeElement && document.activeElement.id === 'askInput', null, { timeout: 3000 });
+    check('name field still gets focus on time with confetti running', await confettiUp(page));
+    const hit = await page.evaluate(() => { const out = {}; for (const id of ['askInput', 'askBtn']) { const r = document.getElementById(id).getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); out[id] = e && e.id; } return out; });
+    check('name field and Post button are hit-testable under the confetti (after the lock)', hit.askInput === 'askInput' && hit.askBtn === 'askBtn', JSON.stringify(hit));
+    await page.fill('#askInput', 'Confetti Cat');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('#board:not([hidden])', { timeout: 5000 });
+    await sleep(3600);
+    check('no second confetti when the board auto-opens', (await created(page)) === 1, String(await created(page)));
+    await page.goBack();
+    await page.waitForSelector('#result:not([hidden])');
+    await sleep(300);
+    check('no confetti when returning from the board', (await created(page)) === 1 && !(await confettiUp(page)), String(await created(page)));
+    check('no leftover animation frames', (await frames(page)) === 0, String(await frames(page)));
+    await ctx.close();
+  }
+
+  /* ---------------- 9c. reduced motion: no confetti, static emphasis ---------------- */
+  console.log('Reduced motion (confetti and blink)');
+  {
+    const { ctx, page } = await open('/portal', { reduce: true });
+    const hint = await page.evaluate(() => { const s = getComputedStyle(document.getElementById('hint')); return { anim: s.animationName, deco: s.textDecorationLine }; });
+    check('idle hint does not blink, is underlined instead', hint.anim === 'none' && /underline/.test(hint.deco), JSON.stringify(hint));
+    await playMouse(page, 4, { noWait: true });
+    await sleep(900);
+    check('no confetti element is created', !(await confettiUp(page)) && (await created(page)) === 0);
+    const badge = await page.evaluate(() => { const s = getComputedStyle(document.getElementById('badge')); return { cls: document.getElementById('badge').classList.contains('emph'), outline: s.outlineStyle, w: s.outlineWidth, anim: s.animationName }; });
+    check('badge gets a static outline', badge.cls && badge.outline === 'solid' && badge.anim === 'none', JSON.stringify(badge));
+    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+    const lbl = await page.evaluate(() => { const s = getComputedStyle(document.querySelector('#again .lbl')); return { anim: s.animationName, deco: s.textDecorationLine }; });
+    check('Play again label does not pulse, is underlined instead', lbl.anim === 'none' && /underline/.test(lbl.deco), JSON.stringify(lbl));
+    await sleep(2600);
+    check('badge emphasis is brief', !(await page.evaluate(() => document.getElementById('badge').classList.contains('emph'))));
+    await ctx.close();
+  }
+
+  /* ---------------- 9d. blink ---------------- */
+  console.log('Blink');
+  {
+    const anim = (page, sel) => page.evaluate((s) => { const st = getComputedStyle(document.querySelector(s)); return { name: st.animationName, ms: parseFloat(st.animationDuration) * 1000 * (/ms$/.test(st.animationDuration) ? 0.001 : 1) }; }, sel);
+    const { ctx, page } = await open('/portal');
+    let a = await anim(page, '#hint');
+    check('idle start hint pulses', a.name === 'nudge', JSON.stringify(a));
+    check('pulse period is at least 800 ms (never faster than 3 per second)', a.ms >= 800, String(a.ms));
+    check('pulse only fades opacity', await page.evaluate(() => { const k = [...document.styleSheets[1].cssRules].find((r) => r.name === 'nudge'); return k && /opacity/.test(k.cssText) && !/transform|color|visibility|display/.test(k.cssText); }));
+    const label0 = await text(page, '#again');
+    await page.click('.mode[data-mode="1"]');
+    const box = await page.locator('#pad').boundingBox();
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    a = await anim(page, '#hint');
+    check('hint stops pulsing once the round starts', a.name === 'none', JSON.stringify(a));
+    for (let i = 0; i < 3; i++) { await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2); }
+    await page.waitForSelector('#result:not([hidden])', { timeout: 6000 });
+    a = await anim(page, '#again .lbl');
+    check('Play again label is still during the 800 ms lock', a.name === 'none', JSON.stringify(a));
+    await page.waitForFunction(() => !document.getElementById('again').disabled, null, { timeout: 3000 });
+    await sleep(60);
+    a = await anim(page, '#again .lbl');
+    check('Play again label pulses once the lock ends', a.name === 'nudge' && a.ms >= 800, JSON.stringify(a));
+    check('label text is never toggled (no re-announcement)', (await text(page, '#again')).toLowerCase() === 'play again');
+    await page.click('#again');
+    await page.waitForSelector('#pad:not([hidden])');
+    a = await anim(page, '#hint');
+    check('hint pulses again when idle', a.name === 'nudge', JSON.stringify(a));
+    check('no layout shift from the pulse (hint box constant)', await page.evaluate(async () => { const e = document.getElementById('hint'); const r0 = e.getBoundingClientRect(); await new Promise((r) => setTimeout(r, 560)); const r1 = e.getBoundingClientRect(); return r0.width === r1.width && r0.height === r1.height && r0.top === r1.top; }));
+    await ctx.close();
+
+    const n = await open('/');
+    await playMouse(n.page, 5, { noWait: true });
+    await n.page.waitForFunction(() => document.activeElement && document.activeElement.id === 'askInput', null, { timeout: 3000 });
+    a = await anim(n.page, '#again .lbl');
+    check('Play again does not pulse while the name field has focus', a.name === 'none', JSON.stringify(a));
+    await n.ctx.close();
+  }
+
   /* ---------------- 10. viewport sweep ---------------- */
   console.log('Viewport sweep');
   const sizes = [[320, 568], [360, 640], [375, 667], [390, 844], [412, 915], [740, 360], [844, 390], [1280, 720], [1920, 1080]];
@@ -402,6 +569,21 @@ try {
   }
 
   if (SHOTS) {
+    console.log('Confetti frames -> ' + SHOTS);
+    for (const scheme of ['light', 'dark']) {
+      const f = await open('/portal', { scheme });
+      await f.page.click('.mode[data-mode="1"]');
+      const fb = await f.page.locator('#pad').boundingBox();
+      for (let i = 0; i < 9; i++) { await f.page.mouse.click(fb.x + fb.width / 2, fb.y + fb.height / 2); }
+      await f.page.waitForSelector('#result:not([hidden])', { timeout: 6000 });
+      const start = Date.now();
+      for (let i = 0; i < 8; i++) {
+        await f.page.screenshot({ path: path.join(SHOTS, 'confetti-' + scheme + '-' + i + '.png') });
+        const wait = (i + 1) * 420 - (Date.now() - start);
+        if (wait > 0) { await sleep(wait); }
+      }
+      await f.ctx.close();
+    }
     console.log('Screenshots -> ' + SHOTS);
     for (const [label, url] of [['after', '/'], ['before', '/before']]) {
       if (label === 'before' && !BEFORE) { continue; }
