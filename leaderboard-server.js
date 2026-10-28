@@ -2,7 +2,7 @@
 'use strict';
 
 /*
- * Tap Sprint leaderboard server.
+ * Tap That leaderboard server.
  * One file, no dependencies, Node 18 or newer.
  *
  *   node leaderboard-server.js
@@ -429,6 +429,6 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 server.listen(PORT, HOST, () => {
-  console.log('Tap Sprint leaderboard listening on ' + HOST + ':' + PORT + ', data file ' + DATA_FILE +
+  console.log('Tap That leaderboard listening on ' + HOST + ':' + PORT + ', data file ' + DATA_FILE +
     ', ' + terms.length + ' blocked terms' + (ADMIN_TOKEN ? ', admin on' : ', admin off'));
 });
