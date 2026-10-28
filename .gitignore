@@ -2,3 +2,6 @@ scores.json
 scores.json.tmp
 node_modules/
 .DS_Store
+.env
+.env.*
+*.log

@@ -1,0 +1,19 @@
+{
+  "name": "tap-sprint",
+  "version": "0.1.0",
+  "description": "A tap/click speed game with timed rounds and a global leaderboard.",
+  "private": true,
+  "homepage": "https://lloydvheremu.github.io/tap-sprint/",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/lloydvheremu/tap-sprint.git"
+  },
+  "author": "lloydvheremu",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node leaderboard-server.js",
+    "check": "node --check leaderboard-server.js && cmp index.html tap-sprint-game.html"
+  }
+}

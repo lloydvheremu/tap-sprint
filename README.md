@@ -2,7 +2,7 @@
 
 Files:
 
-- `tap-sprint-game.html` is the game. One file, no external requests.
+- `index.html` and `tap-sprint-game.html` are the same game: one file, no external requests. `index.html` is what GitHub Pages serves. Keep the two identical (`npm run check` verifies it).
 - `leaderboard-server.js` is a small leaderboard server for the global board (Node 18 or newer, no dependencies).
 - `blocklist.txt` is an empty word list for name filtering. You fill it (see "Name filtering").
 
