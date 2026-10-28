@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-<title>Tap Sprint</title>
+<title>Tap That</title>
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
 <style>
 /* Layout: one-screen instrument. Wordmark, a ruler-style round picker, a drum-head tap pad that takes all spare height, and a dock with your best and the leaderboard. System fonts only. */
@@ -169,6 +169,17 @@ body {
 .pad, .result, .board { position: absolute; inset: 0; border-radius: 14px; }
 
 .pad {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+/* The pad is the fixed hit target. Everything you see lives in .padvis, so effects can move it without moving the target. */
+.padvis {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -177,11 +188,6 @@ body {
   background-color: var(--accent);
   background-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 54px, var(--ring) 54px 56px);
   color: var(--on-accent);
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none;
-  touch-action: none;
 }
 .pad-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; }
 .tag {
@@ -440,7 +446,7 @@ body {
   flex: none;
   appearance: none;
   border: 1px solid var(--ink);
-  background: transparent;
+  background: var(--bg);
   color: var(--ink);
   font-family: var(--f-display);
   font-weight: 700;
@@ -632,7 +638,7 @@ body {
   .mode .n { font-size: 20px; }
   .mode .n.long { font-size: 16px; }
   .stage { min-height: 150px; }
-  .pad { padding: 12px 14px 22px; }
+  .padvis { padding: 12px 14px 22px; }
   .time { font-size: clamp(32px, 9vw, 48px); }
   .count { font-size: clamp(72px, min(40vw, 34vh), 200px); }
   .btn { min-height: 44px; }
@@ -682,12 +688,105 @@ body {
   .result, .board, .result .cps, .poststatus, .ask, .rankbanner, .rows li.mine.flash { animation: none; }
   .btn.locking::after { animation: none; transform: scaleX(0.5); }
 }
+
+/* ---- Effects (cosmetic only). Layers never take pointer events and never sit above the controls. ---- */
+.app { position: relative; z-index: 1; }
+.fxback { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.fxback canvas { position: absolute; left: 0; top: 0; }
+.fxtint { position: absolute; inset: 0; opacity: 0; background: radial-gradient(120% 90% at 50% 100%, rgba(255, 110, 40, 0.5), rgba(255, 110, 40, 0) 70%); }
+.fxitem, .fxshape { position: fixed; margin: 0; pointer-events: none; will-change: transform; }
+.fxshape { opacity: 0; transition: opacity 0.4s ease-out; }
+.fxshape.in { opacity: 0.7; }
+.fxhid { opacity: 0; }
+.padfx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+.padheat { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: linear-gradient(160deg, #B83B14, #8A1C1C); }
+.padvis > .pad-top, .padvis > .mid, .padvis > .pad-bottom { position: relative; z-index: 1; }
+.padscan { position: absolute; inset: 0; pointer-events: none; z-index: 2; opacity: 0; transition: opacity 0.8s ease-out; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.2) 0 1px, transparent 1px 3px); }
+.fxgov {
+  position: absolute; left: 0; right: 0; bottom: 18px; margin: 0 auto; width: fit-content; max-width: calc(100% - 24px);
+  padding: 4px 10px; border-radius: 6px; background: rgba(10, 15, 34, 0.7); color: #fff;
+  font: 600 12px/1.3 var(--f-mono); text-align: center; pointer-events: none; z-index: 3; opacity: 0;
+  animation: fxgov 4.5s ease-in-out forwards;
+}
+@keyframes fxgov { 0% { opacity: 0; } 10%, 85% { opacity: 1; } 100% { opacity: 0; } }
+.fx-glitch .brand, .fx-glitch .cap, .fx-glitch .bestline {
+  text-shadow: calc(var(--fx-fringe, 1.5px) * -1) 0 rgba(255, 0, 80, 0.55), var(--fx-fringe, 1.5px) 0 rgba(0, 190, 255, 0.55);
+}
+.pad[data-skin="ember"] .padvis { background-color: #B3361A; }
+.pad[data-skin="mint"] .padvis { background-color: #0B6B5B; }
+.pad[data-skin="violet"] .padvis { background-color: #6A2BD9; }
+.pad[data-skin="graphite"] .padvis { background-color: #2B3040; }
+
+.dockbtns { display: flex; gap: 8px; flex: none; }
+.app.onboard .fxbtn { display: none; }
+.unlocknote { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); }
+
+.fxpanel { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; background: rgba(10, 15, 34, 0.6); }
+.fxcard {
+  width: 100%; max-width: 560px; max-height: 100%; overflow: auto; overscroll-behavior: contain;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 14px 14px 0 0;
+  padding: 14px 16px 18px; display: flex; flex-direction: column; gap: 12px;
+}
+@media (max-height: 560px) { .fxpin { position: static; } }
+@media (min-width: 600px) and (min-height: 561px) {
+  .fxpanel { align-items: center; padding: 16px; }
+  .fxcard { border-radius: 14px; max-height: calc(100% - 8px); }
+}
+.fxhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.fxhead h2 { margin: 0; font-family: var(--f-display); font-size: 22px; letter-spacing: 0.06em; text-transform: uppercase; }
+.fxhead h2:focus { outline: none; }
+.fxnote { margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); font-size: 13px; color: var(--ink); }
+.fxgrp { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.fxgrp > legend, .fxlab { padding: 0; font-family: var(--f-mono); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.fxseg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+.fxseg label { position: relative; display: flex; font-weight: 700; cursor: pointer; }
+.fxseg label + label { border-left: 1px solid var(--line); }
+.fxseg input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.fxseg span { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; }
+.fxseg input:checked + span { background: var(--ink); color: var(--bg); }
+.fxseg input:focus-visible + span { outline: 3px solid var(--signal); outline-offset: -3px; }
+.fxcard select {
+  width: 100%; min-height: 44px; font: inherit; font-size: 16px; font-weight: 600; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+.fxemoji { display: flex; flex-wrap: wrap; gap: 6px; }
+.fxemoji label { position: relative; width: 44px; height: 44px; display: flex; font-size: 22px; cursor: pointer; }
+.fxemoji input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.fxemoji span { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.fxemoji input:checked + span { border: 3px solid var(--ink); }
+.fxemoji input:focus-visible + span { outline: 3px solid var(--signal); outline-offset: 2px; }
+.fxchecks { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0 12px; }
+.fxchecks label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 600; cursor: pointer; }
+.fxchecks input { width: 22px; height: 22px; margin: 0; flex: none; accent-color: var(--accent); }
+.fxhint { margin: 0; font-size: 12px; color: var(--muted); }
+.fxpin { position: sticky; top: -14px; z-index: 2; background: var(--surface); padding: 10px 0 6px; margin-top: -4px; }
+.fxprev {
+  position: relative; height: 96px; overflow: hidden; border-radius: 12px; cursor: pointer; touch-action: none;
+  user-select: none; -webkit-user-select: none;
+}
+.fxprev .fxprevvis {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border-radius: 12px;
+  background-color: var(--accent); background-image: repeating-radial-gradient(circle at 50% 50%, transparent 0 40px, var(--ring) 40px 42px); color: var(--on-accent);
+}
+.fxprev[data-skin="ember"] .fxprevvis { background-color: #B3361A; }
+.fxprev[data-skin="mint"] .fxprevvis { background-color: #0B6B5B; }
+.fxprev[data-skin="violet"] .fxprevvis { background-color: #6A2BD9; }
+.fxprev[data-skin="graphite"] .fxprevvis { background-color: #2B3040; }
+.fxprev canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.fxprevlab { position: relative; z-index: 1; font-family: var(--f-mono); font-weight: 700; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; pointer-events: none; will-change: transform; }
+.fxprev:focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .fxgov { animation: none; opacity: 1; }
+  .fxshape { transition: none; }
+}
 </style>
 </head>
 <body>
+<div id="fxback" class="fxback" aria-hidden="true"><div id="fxtint" class="fxtint"></div><canvas id="fxbackc" width="1" height="1" hidden></canvas></div>
 <main id="app" class="app">
   <header class="top">
-    <h1 class="brand">Tap Sprint</h1>
+    <h1 class="brand">Tap That</h1>
     <span class="cap">Tap speed test</span>
   </header>
 
@@ -708,19 +807,25 @@ body {
 
   <div class="stage">
     <div id="pad" class="pad" role="button" tabindex="0" aria-label="Tap area">
-      <div class="pad-top">
-        <span id="tag" class="tag">5 sec round</span>
-        <span class="clock"><span id="time" class="time">5.00</span><span class="sec">sec</span></span>
+      <div id="padvis" class="padvis">
+        <div id="padheat" class="padheat" aria-hidden="true"></div>
+        <canvas id="padfx" class="padfx" aria-hidden="true"></canvas>
+        <div class="pad-top">
+          <span id="tag" class="tag">5 sec round</span>
+          <span class="clock"><span id="time" class="time">5.00</span><span class="sec">sec</span></span>
+        </div>
+        <div class="mid">
+          <div id="count" class="count">0</div>
+          <div class="unit">taps</div>
+        </div>
+        <div class="pad-bottom">
+          <div id="hint" class="hint">Tap anywhere to start</div>
+          <div id="hint2" class="hint2">Click, right-click or press Space works too. Your first tap starts the clock.</div>
+        </div>
+        <div class="bar"><i id="fill"></i></div>
+        <div id="padscan" class="padscan" aria-hidden="true"></div>
+        <p id="fxGov" class="fxgov" role="status" hidden></p>
       </div>
-      <div class="mid">
-        <div id="count" class="count">0</div>
-        <div class="unit">taps</div>
-      </div>
-      <div class="pad-bottom">
-        <div id="hint" class="hint">Tap anywhere to start</div>
-        <div id="hint2" class="hint2">Click, right-click or press Space works too. Your first tap starts the clock.</div>
-      </div>
-      <div class="bar"><i id="fill"></i></div>
     </div>
 
     <section id="result" class="result" role="region" aria-label="Round result" tabindex="-1" hidden>
@@ -734,6 +839,7 @@ body {
       </div>
       <p id="summary" class="summary"><span id="sumtext"></span> <span id="methodTag" class="methodtag"></span></p>
       <p id="note" class="note"></p>
+      <p id="unlockNote" class="unlocknote" role="status" hidden></p>
       <p id="postStatus" class="poststatus" hidden><span id="postText"></span><button id="postAct" class="linkbtn" type="button" hidden></button></p>
       <form id="askForm" class="ask" autocomplete="off" hidden>
         <label id="askLabel" for="askInput">Add a name to post this score</label>
@@ -793,10 +899,68 @@ body {
 
   <footer class="dock">
     <span id="bestLine" class="bestline"></span>
-    <button id="boardBtn" class="ghost" type="button">Leaderboard</button>
+    <span class="dockbtns"><button id="fxBtn" class="ghost fxbtn" type="button">Effects</button><button id="boardBtn" class="ghost" type="button">Leaderboard</button></span>
   </footer>
   <p id="announce" class="sr" role="status" aria-live="polite"></p>
 </main>
+<div id="fxPanel" class="fxpanel" hidden>
+  <div id="fxCard" class="fxcard" role="dialog" aria-modal="true" aria-labelledby="fxTitle">
+    <div class="fxhead">
+      <h2 id="fxTitle" tabindex="-1">Effects</h2>
+      <button id="fxClose" class="ghost" type="button">Done</button>
+    </div>
+    <div class="fxgrp fxpin">
+      <span class="fxlab" id="fxPrevLab">Try it</span>
+      <div id="fxPrev" class="fxprev" role="button" tabindex="0" aria-labelledby="fxPrevLab" data-skin="classic">
+        <div id="fxPrevVis" class="fxprevvis"><canvas id="fxPrevC" aria-hidden="true"></canvas><span id="fxPrevText" class="fxprevlab">Tap here to try</span></div>
+      </div>
+    </div>
+    <p id="fxNote" class="fxnote" hidden>Your device asks for reduced motion, so visual effects start off. You can still switch them on.</p>
+    <p id="fxGovNote" class="fxnote" hidden>Effects were eased down automatically to keep taps smooth on this device. Choose a level again to retry.</p>
+    <fieldset class="fxgrp">
+      <legend>Level</legend>
+      <div class="fxseg" id="fxLevel">
+        <label><input type="radio" name="fxlevel" value="off"><span>Off</span></label>
+        <label><input type="radio" name="fxlevel" value="light"><span>Light</span></label>
+        <label><input type="radio" name="fxlevel" value="full"><span>Full</span></label>
+      </div>
+      <p class="fxhint">Light: jelly wobble and ripples. Full: everything you pick below.</p>
+    </fieldset>
+    <div class="fxgrp">
+      <label class="fxlab" for="fxTheme">Theme (Full only)</label>
+      <select id="fxTheme"></select>
+    </div>
+    <fieldset id="fxEmojiBox" class="fxgrp" hidden>
+      <legend>Emoji</legend>
+      <div class="fxemoji" id="fxEmoji"></div>
+    </fieldset>
+    <fieldset class="fxgrp">
+      <legend>Extras</legend>
+      <div class="fxchecks">
+        <label><input type="checkbox" id="fxHeat"><span>Heat meter</span></label>
+        <label><input type="checkbox" id="fxLines"><span>Speed lines</span></label>
+        <label><input type="checkbox" id="fxShake"><span>Screen shake</span></label>
+        <label><input type="checkbox" id="fxSound"><span>Sound</span></label>
+        <label><input type="checkbox" id="fxVib"><span>Vibration</span></label>
+      </div>
+      <p id="fxAudioNote" class="fxhint" hidden></p>
+      <p class="fxhint">Heat, lines and shake need Full. Sound and vibration work at any level. iPhone Safari has no vibration.</p>
+    </fieldset>
+    <div class="fxgrp">
+      <label class="fxlab" for="fxSkin">Tap area skin</label>
+      <select id="fxSkin"></select>
+    </div>
+    <div class="fxgrp">
+      <label class="fxlab" for="fxRipple">Ripple colour</label>
+      <select id="fxRipple"></select>
+    </div>
+    <div class="fxgrp">
+      <label class="fxlab" for="fxTrail">Trail (Full only)</label>
+      <select id="fxTrail"></select>
+    </div>
+    <p class="fxhint">Effects are cosmetic. They never change your score or which leaderboard you are on.</p>
+  </div>
+</div>
 
 <script>
 /* Game owner: set leaderboardUrl to your leaderboard server (see README) to turn the global leaderboard on.
@@ -824,7 +988,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
 
   function $(id) { return document.getElementById(id); }
-  var pad = $('pad'), countEl = $('count'), timeEl = $('time'), tagEl = $('tag');
+  var pad = $('pad'), padvis = $('padvis'), countEl = $('count'), timeEl = $('time'), tagEl = $('tag');
   var hintEl = $('hint'), hint2El = $('hint2'), fillEl = $('fill');
   var resultEl = $('result'), rankEl = $('rank'), badgeEl = $('badge'), cpsEl = $('cps');
   var sumEl = $('sumtext'), noteEl = $('note'), histEl = $('hist'), capEl = $('chartcap');
@@ -835,7 +999,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   var boardFoot = $('boardFoot'), boardPlay = $('boardPlay'), boardTitle = $('boardTitle');
   var whoText = $('whoText'), changeName = $('changeName');
   var customRow = $('customRow'), customInput = $('customSec'), customHint = $('customHint'), customN = $('customN');
-  var bestLine = $('bestLine'), boardBtn = $('boardBtn');
+  var bestLine = $('bestLine'), boardBtn = $('boardBtn'), fxBtnEl = $('fxBtn'), unlockNote = $('unlockNote');
   var boardEl = $('board'), boardBack = $('boardBack'), boardMsg = $('boardMsg'), boardRetry = $('boardRetry');
   var rowsEl = $('rows'), meLine = $('meLine'), nameForm = $('nameForm'), nameInput = $('nameInput'), nameMsg = $('nameMsg');
   var methodTag = $('methodTag'), repMsg = $('repMsg'), whoLine = $('whoLine');
@@ -843,7 +1007,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
   var tabBtns = [].slice.call(document.querySelectorAll('.tab'));
   var mtabBtns = [].slice.call(document.querySelectorAll('.mtab'));
 
-  var store = { mode: 5, custom: false, customSec: 45, best: {}, posted: {}, name: '', pid: '', method: '' };
+  var store = { mode: 5, custom: false, customSec: 45, best: {}, posted: {}, name: '', pid: '', method: '', fx: null, unlock: { v: 1, taps: 0, bests: 0, seen: [] } };
   var state = 'idle';            // idle | running | done | result
   var boardOpen = false, boardSec = 5, boardMethod = 'all', boardReq = 0, resultSeq = 0, boardLB = null;
   var srcs = { touch: false, mouse: false, key: false };
@@ -962,6 +1126,9 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     var n = cleanName(o.name);
     if (n && !store.name) { store.name = n; }
     if (typeof o.pid === 'string' && /^[a-z0-9]{12,64}$/.test(o.pid) && !store.pid) { store.pid = o.pid; }
+    /* Effects settings and cosmetic unlock progress (both optional; older saves have neither). */
+    if (!store.fx) { store.fx = FX.clean(o.fx); }
+    FX.mergeUnlock(o.unlock);
   }
   function load() {
     try {
@@ -1124,6 +1291,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     modeBtns.forEach(function (b) { b.disabled = !on; });
     customInput.disabled = !on;
     boardBtn.disabled = !on;
+    fxBtnEl.disabled = !on;
   }
 
   function renderBest() {
@@ -1172,6 +1340,8 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     stopConfetti();
     againTapped = false;
     againBtn.classList.remove('blink');
+    FX.reset();
+    unlockNote.hidden = true;
     taps = 0;
     buckets = [];
     configure();
@@ -1204,6 +1374,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     pad.classList.add('live');
     tEnd = setTimeout(finish, duration);
     raf = requestAnimationFrame(tick);
+    FX.roundStart(curSec());
   }
 
   function tick() {
@@ -1232,6 +1403,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     last = { taps: taps, prev: prev, isBest: taps > prev, sec: sec, custom: custom, method: method, buckets: buckets.slice() };
     store.method = method;
     if (last.isBest) { store.best[key] = taps; }
+    FX.roundEnd(last);
     save();
     tShow = setTimeout(showResult, FLASH_MS);
   }
@@ -1480,6 +1652,10 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     drawHist(last.buckets, sec);
     renderBest();
     pad.hidden = true;
+    FX.shown();
+    var ut = FX.takeUnlock();
+    unlockNote.textContent = ut;
+    unlockNote.hidden = !ut;
     boardEl.hidden = true;
     postStatus.hidden = true;
     askForm.hidden = true;
@@ -1886,28 +2062,1042 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     });
   });
 
+  /* ---- Effects: optional, cosmetic only ----
+     A tap is counted and timestamped first. FX.tap() then only queues it; one requestAnimationFrame loop does all
+     drawing, sound and vibration, and it stops by itself when nothing is moving. No timers, no layout reads on tap.
+     Nothing here touches the score, the input method or the leaderboard. */
+  var FX = (function () {
+    var LEVELS = ['off', 'light', 'full'];
+    var THEME_IDS = ['none', 'earthquake', 'crack', 'balloon', 'paint', 'lightning', 'zerog', 'glitch', 'emoji'];
+    var THEME_NAME = { none: 'None', earthquake: 'Earthquake', crack: 'Glass crack', balloon: 'Balloon', paint: 'Paint splatter', lightning: 'Lightning', zerog: 'Zero gravity', glitch: 'Retro glitch', emoji: 'Emoji rain' };
+    var EMOJIS = ['🔥', '⭐', '🍕', '🐸', '🎈', '💎', '🌈', '🍩'];
+    /* Cosmetics unlock from lifetime taps or personal bests. Everything else is available from the start. */
+    var SKINS = [
+      { id: 'classic', name: 'Classic' },
+      { id: 'ember', name: 'Ember', taps: 300 },
+      { id: 'mint', name: 'Mint', taps: 1500 },
+      { id: 'violet', name: 'Violet', bests: 5 },
+      { id: 'graphite', name: 'Graphite', taps: 6000 }
+    ];
+    var RIPPLES = [
+      { id: 'white', name: 'White', color: '#FFFFFF' },
+      { id: 'amber', name: 'Amber', color: '#FFC247', taps: 150 },
+      { id: 'cyan', name: 'Cyan', color: '#5CE1FF', taps: 800 },
+      { id: 'pink', name: 'Pink', color: '#FF8FD1', bests: 3 }
+    ];
+    var TRAILS = [
+      { id: 'none', name: 'None' },
+      { id: 'dots', name: 'Dots', taps: 400 },
+      { id: 'comet', name: 'Comet', taps: 2500 }
+    ];
+    var ALL_UNLOCKS = SKINS.concat(RIPPLES, TRAILS).filter(function (u) { return u.taps || u.bests; });
+    var UNLOCK_IDS = ALL_UNLOCKS.map(function (u) { return u.id; });
+
+    function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
+    function rnd(a, b) { return a + Math.random() * (b - a); }
+    function pickIn(v, list, d) { return list.indexOf(v) > -1 ? v : d; }
+    function bool(v, d) { return typeof v === 'boolean' ? v : d; }
+    function find(list, id) { for (var i = 0; i < list.length; i++) { if (list[i].id === id) { return list[i]; } } return list[0]; }
+    function ids(list) { return list.map(function (x) { return x.id; }); }
+
+    /* ---- Settings and unlock progress (store.fx, store.unlock). Unknown or damaged data falls back to defaults. ---- */
+    function dflt() {
+      return { v: 1, level: reduced() ? 'off' : 'light', theme: 'none', emoji: EMOJIS[0], sound: false, vib: false, heat: true, lines: true, shake: true, skin: 'classic', ripple: 'white', trail: 'none' };
+    }
+    function cleanFx(o) {
+      if (!o || typeof o !== 'object') { return null; }
+      var d = dflt();
+      return {
+        v: 1,
+        level: pickIn(o.level, LEVELS, d.level),
+        theme: pickIn(o.theme, THEME_IDS, d.theme),
+        emoji: pickIn(o.emoji, EMOJIS, d.emoji),
+        sound: bool(o.sound, d.sound), vib: bool(o.vib, d.vib), heat: bool(o.heat, d.heat), lines: bool(o.lines, d.lines), shake: bool(o.shake, d.shake),
+        skin: pickIn(o.skin, ids(SKINS), d.skin), ripple: pickIn(o.ripple, ids(RIPPLES), d.ripple), trail: pickIn(o.trail, ids(TRAILS), d.trail)
+      };
+    }
+    function mergeUnlock(u) {
+      if (!u || typeof u !== 'object') { return; }
+      var t = Math.floor(Number(u.taps)), b = Math.floor(Number(u.bests));
+      if (isFinite(t) && t > 0) { store.unlock.taps = Math.max(store.unlock.taps, Math.min(t, 1e9)); }
+      if (isFinite(b) && b > 0) { store.unlock.bests = Math.max(store.unlock.bests, Math.min(b, 1e6)); }
+      if (Array.isArray(u.seen)) {
+        u.seen.forEach(function (id) { if (UNLOCK_IDS.indexOf(id) > -1 && store.unlock.seen.indexOf(id) < 0) { store.unlock.seen.push(id); } });
+      }
+    }
+    function cfg() { return store.fx || dflt(); }
+    function setCfg(k, v) {
+      var c = cfg(), n = {};
+      Object.keys(c).forEach(function (key) { n[key] = c[key]; });
+      n[k] = v;
+      store.fx = cleanFx(n);
+      save();
+    }
+    function unlocked(u) {
+      var s = store.unlock;
+      return (!u.taps || s.taps >= u.taps) && (!u.bests || s.bests >= u.bests);
+    }
+    function lockText(u) {
+      var s = store.unlock, bits = [];
+      if (u.taps && s.taps < u.taps) { bits.push((u.taps - s.taps) + ' more taps'); }
+      if (u.bests && s.bests < u.bests) { bits.push((u.bests - s.bests) + ' more personal best' + (u.bests - s.bests === 1 ? '' : 's')); }
+      return bits.join(' and ');
+    }
+    function chosen(list, id) { var u = find(list, id); return unlocked(u) ? u : list[0]; }
+
+    var gov = { cap: 2, noted: false, frames: [], skip: 0 };
+    function levelIdx() { return Math.min(LEVELS.indexOf(cfg().level), gov.cap); }
+
+    /* ---- Portal sound signals. Only used when the portal's SDK is really on the page. ---- */
+    var ytAudio = true;
+    yt(function (g) {
+      var sys = g.system;
+      if (sys && typeof sys.isAudioEnabled === 'function') { ytAudio = !!sys.isAudioEnabled(); }
+      if (sys && typeof sys.onAudioEnabledChange === 'function') { sys.onAudioEnabledChange(function (on) { ytAudio = !!on; }); }
+    });
+    function portalMuted() {
+      if (!ytAudio) { return true; }
+      try {
+        var cg = window.CrazyGames && window.CrazyGames.SDK && window.CrazyGames.SDK.game;
+        if (cg && cg.settings && cg.settings.muteAudio) { return true; }
+      } catch (e) {}
+      return false;
+    }
+
+    /* ---- Sound (Web Audio, no files) and vibration ---- */
+    var ac = null, lastTick = 0, lastVib = 0;
+    function ensureAudio() {
+      if (ac) { if (ac.state === 'suspended') { try { ac.resume(); } catch (e) {} } return; }
+      try {
+        var Ctor = window.AudioContext || window.webkitAudioContext;
+        if (Ctor) { ac = new Ctor(); }
+      } catch (e) { ac = null; }
+    }
+    function tickSound(cps, now) {
+      if (!ac || ac.state !== 'running' || now - lastTick < 30) { return; }
+      lastTick = now;
+      try {
+        var t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'triangle';
+        o.frequency.value = 480 + Math.min(cps, 14) * 52;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.05, t + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+        o.connect(g); g.connect(ac.destination);
+        o.start(t); o.stop(t + 0.06);
+      } catch (e) {}
+    }
+    function buzz(now) {
+      if (now - lastVib < 50 || typeof navigator.vibrate !== 'function') { return; }
+      lastVib = now;
+      try { navigator.vibrate(8); } catch (e) {}
+    }
+
+    /* ---- Geometry, cached on round start and on resize ---- */
+    var backEl = $('fxback'), backC = $('fxbackc'), tintEl = $('fxtint');
+    var padC = $('padfx'), heatEl = $('padheat'), scanEl = $('padscan'), govEl = $('fxGov');
+    var geo = { vw: 0, vh: 0, phone: true, dpr: 1 };
+    var colors = { signal: '#FF5A2B', accent: '#2A3DF0' };
+    var needMeasure = true;
+    var raf = 0, lastTs = 0;
+
+    /* Decorative pieces (title, captions, footer line and some shapes) are cloned onto a layer behind the page; the originals
+       are only hidden, never moved. Controls, the timer, the count and the tap area are never part of this. */
+    function makeDeco(host) {
+      var d = { items: [], floor: 0 };
+      d.build = function (floor) {
+        d.release();
+        d.floor = floor;
+        if (host === 'main') {
+          [document.querySelector('.brand'), document.querySelector('.cap'), bestLine].forEach(function (el) {
+            if (!el) { return; }
+            var r = el.getBoundingClientRect();
+            if (!r.width || !r.height) { return; }
+            var c = el.cloneNode(true);
+            c.removeAttribute('id');
+            c.setAttribute('aria-hidden', 'true');
+            c.className += ' fxitem';
+            c.style.left = r.left + 'px'; c.style.top = r.top + 'px'; c.style.width = r.width + 'px'; c.style.height = r.height + 'px';
+            backEl.appendChild(c);
+            el.classList.add('fxhid');
+            d.items.push({ el: el, node: c, x: r.left, y: r.top, w: r.width, h: r.height, dx: 0, dy: 0, rot: 0, vx: 0, vy: 0, vr: 0, st: 0, bounce: 0, pile: rnd(2, 22), end: rnd(-28, 28), sgn: Math.random() < 0.5 ? -1 : 1, ang: rnd(0, 6.283), born: false });
+          });
+          var spots = [[0.07, 0.2, 26], [0.93, 0.16, 30], [0.5, 0.045, 18], [0.06, 0.58, 32], [0.94, 0.62, 24], [0.14, 0.93, 28], [0.86, 0.9, 34], [0.5, 0.97, 20]];
+          spots.forEach(function (s, i) {
+            var n = document.createElement('div');
+            n.className = 'fxshape';
+            n.setAttribute('aria-hidden', 'true');
+            var sz = s[2], x = Math.round(geo.vw * s[0] - sz / 2), y = Math.round(geo.vh * s[1] - sz / 2);
+            n.style.left = x + 'px'; n.style.top = y + 'px'; n.style.width = sz + 'px'; n.style.height = sz + 'px';
+            var k = i % 4;
+            var inner = k === 0 ? '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="3"/>'
+              : k === 1 ? '<path d="M12 3 L22 21 L2 21 Z" fill="currentColor"/>'
+              : k === 2 ? '<path d="M9 2h6v7h7v6h-7v7H9v-7H2V9h7z" fill="currentColor"/>'
+              : '<rect x="3" y="3" width="18" height="18" rx="4" fill="none" stroke="currentColor" stroke-width="3"/>';
+            n.innerHTML = '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true" style="color:' + (i % 2 ? 'var(--accent)' : 'var(--muted)') + '">' + inner + '</svg>';
+            backEl.appendChild(n);
+            d.items.push({ el: null, node: n, x: x, y: y, w: sz, h: sz, dx: 0, dy: 0, rot: 0, vx: 0, vy: 0, vr: 0, st: 0, bounce: 0, pile: rnd(2, 22), end: rnd(-28, 28), sgn: i % 2 ? -1 : 1, ang: rnd(0, 6.283), born: false });
+          });
+        } else {
+          var lab = $('fxPrevText');
+          if (lab) { d.items.push({ el: null, node: lab, x: 0, y: 0, w: 0, h: 0, dx: 0, dy: 0, rot: 0, vx: 0, vy: 0, vr: 0, st: 0, bounce: 0, pile: 4, end: 14, sgn: 1, ang: 1, born: true, prev: true }); }
+        }
+      };
+      d.set = function (it) {
+        it.node.style.transform = 'translate3d(' + it.dx.toFixed(1) + 'px,' + it.dy.toFixed(1) + 'px,0) rotate(' + it.rot.toFixed(1) + 'deg)';
+      };
+      d.release = function () {
+        d.items.forEach(function (it) {
+          if (it.prev) { it.node.style.transform = ''; return; }
+          if (it.node.parentNode) { it.node.parentNode.removeChild(it.node); }
+          if (it.el) { it.el.classList.remove('fxhid'); }
+        });
+        d.items = [];
+      };
+      d.moved = function () {
+        for (var i = 0; i < d.items.length; i++) { var it = d.items[i]; if (it.dx || it.dy || it.rot) { return true; } }
+        return false;
+      };
+      return d;
+    }
+
+    /* ---- Stage: one tap area (or the preview) with its particles and the active theme ---- */
+    function makeStage(kind, cv, vis) {
+      var st = {
+        kind: kind, cv: cv, ctx: cv.getContext('2d'), vis: vis, w: 0, h: 0, dpr: 1, ox: 0, oy: 0,
+        P: [], cnt: 0, tapT: [], cps: 0, cpsS: 0, heatS: 0, last: null, ja: 0, jv: 0, running: false, lvl: 0, cfgNow: cfg(),
+        sec: 5, theme: null, themeId: 'none', maxP: 24, deco: makeDeco(kind), tFall: [20, 40, 60], lines: [], vtx: ''
+      };
+      var cc = colors;
+      st.size = function (w, h, ox, oy) {
+        st.w = w; st.h = h; st.ox = ox; st.oy = oy;
+        st.dpr = geo.dpr;
+        cv.width = Math.max(1, Math.round(w * st.dpr));
+        cv.height = Math.max(1, Math.round(h * st.dpr));
+        st.ctx.setTransform(st.dpr, 0, 0, st.dpr, 0, 0);
+      };
+      st.refresh = function () {
+        st.cfgNow = cfg();
+        st.lvl = kind === 'main' ? levelIdx() : LEVELS.indexOf(cfg().level);
+        st.maxP = st.lvl >= 2 ? (geo.phone ? 60 : 110) : 24;
+        if (geo.low) { st.maxP = Math.round(st.maxP * 0.6); }
+      };
+      st.useTheme = function (id) {
+        if (st.theme && st.themeId === id) { return; }
+        if (st.theme) { st.theme.destroy(); }
+        st.themeId = id;
+        st.theme = THEMES[id](st);
+        st.theme.init();
+      };
+      st.add = function (p) {
+        if (st.P.length >= st.maxP) { st.P.shift(); }
+        st.P.push(p);
+      };
+      st.xy = function (x, y) { return { x: x == null ? st.w / 2 : x - st.ox, y: y == null ? st.h / 2 : y - st.oy }; };
+      st.cpsAt = function (now) {
+        var n = 0, a = st.tapT;
+        for (var i = a.length - 1; i >= 0 && a[i] > now - 1000; i--) { n++; }
+        return n;
+      };
+      st.begin = function (sec) {
+        st.refresh();
+        st.running = true; st.sec = sec; st.cnt = 0; st.tapT.length = 0; st.last = null; st.P.length = 0;
+        var s = clamp(sec / 10, 0.1, 1);
+        st.tFall = [Math.max(3, Math.round(20 * s)), Math.max(6, Math.round(40 * s)), Math.max(9, Math.round(60 * s))];
+        st.useTheme(st.lvl >= 2 ? st.cfgNow.theme : 'none');
+        st.theme.onRoundStart();
+      };
+      st.end = function () {
+        st.running = false;
+        if (st.theme) { st.theme.onRoundEnd(); }
+      };
+      st.tap = function (x, y, src, t) {
+        st.refresh();
+        var p = st.xy(x, y), now = t;
+        st.tapT.push(t); if (st.tapT.length > 48) { st.tapT.shift(); }
+        st.cnt += 1;
+        st.cps = st.cpsAt(now);
+        if (st.lvl >= 1) {
+          st.jv += 0.9 + Math.min(st.cpsS, 12) * 0.05;
+          st.add({ k: 'ring', x: p.x, y: p.y, t0: now, life: 520, r1: clamp(Math.min(st.w, st.h) * 0.22, 40, 120), c: chosen(RIPPLES, st.cfgNow.ripple).color });
+        }
+        if (st.lvl >= 2) {
+          var n = geo.phone ? 5 : 8;
+          for (var i = 0; i < n; i++) {
+            var a = rnd(0, 6.283), sp = rnd(70, 220);
+            st.add({ k: 'spark', x: p.x, y: p.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 40, t0: now, life: rnd(380, 560), s: rnd(1.8, 3), c: i % 3 === 0 ? cc.signal : '#FFFFFF' });
+          }
+          st.add({ k: 'num', x: p.x, y: p.y - 14, t0: now, life: 600, txt: '+1' });
+          if (st.cnt % 10 === 0) { st.add({ k: 'big', x: st.w / 2, y: st.h / 2, t0: now, life: 650, txt: String(st.cnt) }); }
+          var tr = chosen(TRAILS, st.cfgNow.trail).id;
+          if (tr !== 'none' && st.last) {
+            var dx = p.x - st.last.x, dy = p.y - st.last.y, dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 6 && dist < 500) {
+              if (tr === 'comet') { st.add({ k: 'line', x: st.last.x, y: st.last.y, x2: p.x, y2: p.y, t0: now, life: 320, c: chosen(RIPPLES, st.cfgNow.ripple).color }); }
+              else { for (var j = 1; j <= 4; j++) { st.add({ k: 'dot', x: st.last.x + dx * j / 5, y: st.last.y + dy * j / 5, t0: now, life: 380, s: 3 - j * 0.3, c: chosen(RIPPLES, st.cfgNow.ripple).color }); } }
+            }
+          }
+          if (st.theme) { st.theme.onTap(p.x, p.y, src, st.cps, st.cnt); }
+        }
+        st.last = p;
+      };
+      st.reset = function () {
+        st.running = false; st.P.length = 0; st.cnt = 0; st.tapT.length = 0; st.last = null;
+        st.cps = 0; st.cpsS = 0; st.heatS = 0; st.ja = 0; st.jv = 0;
+        if (st.theme) { st.theme.reset(); }
+        st.ctx.clearRect(0, 0, st.w, st.h);
+        st.writeLook(0, 0, 0, 1, 1);
+        if (kind === 'main') {
+          heatEl.style.opacity = '0'; scanEl.style.opacity = '0'; tintEl.style.opacity = '0'; st.lastHeat = '0'; st.lastScan = '0';
+          document.documentElement.classList.remove('fx-glitch');
+          document.documentElement.style.removeProperty('--fx-fringe');
+        }
+      };
+      st.padHide = function () {
+        st.P.length = 0;
+        if (st.theme) { st.theme.padHide(); }
+        st.ctx.clearRect(0, 0, st.w, st.h);
+        st.vis.style.transform = ''; st.vtx = '';
+      };
+      st.writeLook = function (dx, dy, rot, sx, sy) {
+        var v = (!dx && !dy && !rot && sx === 1 && sy === 1) ? ''
+          : 'translate(' + dx.toFixed(2) + 'px,' + dy.toFixed(2) + 'px) rotate(' + rot.toFixed(3) + 'deg) scale(' + sx.toFixed(4) + ',' + sy.toFixed(4) + ')';
+        if (v !== st.vtx) { st.vis.style.transform = v; st.vtx = v; }
+      };
+      /* One frame: update, then draw. Returns true while something is still moving. */
+      st.step = function (dt, now) {
+        var live = st.running, i, p, u;
+        var raw = st.cpsAt(now);
+        st.cps = raw;
+        st.cpsS += (raw - st.cpsS) * (1 - Math.exp(-dt / 0.35));
+        if (st.cpsS < 0.02) { st.cpsS = 0; }
+        var ht = clamp((raw - 2) / 9, 0, 1);
+        var tau = ht > st.heatS ? 1.3 : (st.running ? 2.2 : 0.6);
+        st.heatS += (ht - st.heatS) * (1 - Math.exp(-dt / tau));
+        if (st.heatS < 0.004) { st.heatS = 0; }
+        /* jelly spring */
+        var acc = -420 * st.ja - 15 * st.jv;
+        st.jv += acc * dt; st.ja += st.jv * dt;
+        st.ja = clamp(st.ja, -0.06, 0.06);
+        if (Math.abs(st.ja) < 0.0003 && Math.abs(st.jv) < 0.02) { st.ja = 0; st.jv = 0; }
+        var s = Math.abs(st.ja), sx = 1 + s * 0.4, sy = 1 - s * 0.9;
+        var dx = 0, dy = 0, rot = 0;
+        var full = st.lvl >= 2, cf = st.cfgNow;
+        if (full && cf.shake && st.running) {
+          var amp = Math.min(3.2, st.cpsS * 0.28);
+          dx = amp * Math.sin(now * 0.052); dy = amp * 0.75 * Math.sin(now * 0.067 + 1.3); rot = Math.min(0.45, amp * 0.14) * Math.sin(now * 0.043 + 0.7);
+        }
+        if (st.lvl >= 1) { st.writeLook(dx, dy, rot, sx, sy); } else { st.writeLook(0, 0, 0, 1, 1); }
+        /* heat, scan lines */
+        if (kind === 'main') {
+          var h = (full && cf.heat) ? st.heatS : 0;
+          var hv = (h * 0.8).toFixed(3);
+          if (st.lastHeat !== hv) { st.lastHeat = hv; heatEl.style.opacity = hv; tintEl.style.opacity = (h * 0.7).toFixed(3); }
+        }
+        /* particles */
+        for (i = st.P.length - 1; i >= 0; i--) {
+          p = st.P[i];
+          u = (now - p.t0) / p.life;
+          if (u >= 1) { st.P.splice(i, 1); continue; }
+          if (p.k === 'spark') { p.vy += 380 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 1 - 1.5 * dt; }
+        }
+        var themeBusy = st.theme ? st.theme.update(dt, now) : false;
+        /* speed lines */
+        var la = (full && cf.lines) ? clamp((st.cpsS - 2.5) / 8, 0, 1) * 0.3 : 0;
+        if (la > 0.01 && !st.lines.length) {
+          for (i = 0; i < 18; i++) { st.lines.push({ x: Math.random(), y: Math.random(), len: rnd(40, 120), sp: rnd(700, 1200) }); }
+        }
+        if (la > 0.01) {
+          for (i = 0; i < st.lines.length; i++) { var ln = st.lines[i]; ln.y += ln.sp * dt / Math.max(1, st.h); if (ln.y * st.h - ln.len > st.h) { ln.y = -ln.len / st.h; ln.x = Math.random(); } }
+        }
+        /* draw */
+        var c = st.ctx;
+        c.clearRect(0, 0, st.w, st.h);
+        if (la > 0.01) {
+          c.lineWidth = 1.5; c.lineCap = 'round';
+          for (i = 0; i < st.lines.length; i++) {
+            var q = st.lines[i], bx = q.x < 0.5 ? q.x * 0.28 * st.w : st.w - (1 - q.x) * 0.28 * st.w;
+            c.strokeStyle = 'rgba(255,255,255,' + (la * (0.4 + 0.6 * q.len / 120)).toFixed(3) + ')';
+            c.beginPath(); c.moveTo(bx, q.y * st.h); c.lineTo(bx, q.y * st.h + q.len); c.stroke();
+          }
+        }
+        if (st.theme) { st.theme.draw(c, now); }
+        for (i = 0; i < st.P.length; i++) { drawPart(c, st.P[i], now, st); }
+        return live || st.P.length > 0 || themeBusy || st.ja !== 0 || st.jv !== 0 || st.cpsS > 0 || st.heatS > 0 || la > 0.01;
+      };
+      return st;
+    }
+    function drawPart(c, p, now, st) {
+      var u = (now - p.t0) / p.life, e = 1 - (1 - u) * (1 - u);
+      if (p.k === 'ring') {
+        c.globalAlpha = 0.65 * (1 - u); c.strokeStyle = p.c; c.lineWidth = 2;
+        c.beginPath(); c.arc(p.x, p.y, 8 + (p.r1 - 8) * e, 0, 6.2832); c.stroke();
+      } else if (p.k === 'spark' || p.k === 'dot') {
+        c.globalAlpha = 1 - u; c.fillStyle = p.c;
+        c.beginPath(); c.arc(p.x, p.y, p.s * (1 - u * 0.4), 0, 6.2832); c.fill();
+      } else if (p.k === 'num') {
+        c.globalAlpha = 0.9 * (1 - u); c.fillStyle = '#FFFFFF'; c.font = '800 20px ' + getComputedFontCache(); c.textAlign = 'center';
+        c.fillText(p.txt, p.x, p.y - e * 36);
+      } else if (p.k === 'big') {
+        c.globalAlpha = 0.32 * (1 - u); c.fillStyle = '#FFFFFF'; c.font = '800 ' + Math.round(Math.min(st.w, st.h) * (0.3 + 0.2 * e)) + 'px ' + getComputedFontCache(); c.textAlign = 'center'; c.textBaseline = 'middle';
+        c.fillText(p.txt, p.x, p.y); c.textBaseline = 'alphabetic';
+      } else if (p.k === 'line') {
+        c.globalAlpha = 0.7 * (1 - u); c.strokeStyle = p.c; c.lineWidth = 4 * (1 - u) + 1; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(p.x2, p.y2); c.stroke();
+      }
+      c.globalAlpha = 1;
+    }
+    var fontCache = '';
+    function getComputedFontCache() { return fontCache || 'sans-serif'; }
+
+    /* ---- Themes: init, onTap, onRoundStart, onRoundEnd, reset, destroy (plus update, draw and padHide for the loop). Never stacked. ---- */
+    function themeBase(st) {
+      return { init: function () {}, onTap: function () {}, onRoundStart: function () {}, onRoundEnd: function () {}, reset: function () {}, destroy: function () {}, update: function () { return false; }, draw: function () {}, padHide: function () {} };
+    }
+    /* Shared by Earthquake and Zero gravity: both work on the decorative clones. */
+    function decorTheme(st, mode) {
+      var t = themeBase(st), rebuild = 0, rebT0 = 0, from = [], pending = false;
+      t.onRoundStart = function () { rebuild = 0; st.deco.release(); pending = true; };
+      t.reset = function () {
+        pending = false;
+        if (rebuild || !st.deco.items.length) { st.deco.release(); rebuild = 0; return; }
+        if (st.deco.moved()) {
+          rebuild = 1; rebT0 = 0;
+          from = st.deco.items.map(function (it) { return [it.dx, it.dy, it.rot]; });
+        } else { st.deco.release(); }
+      };
+      t.destroy = function () { st.deco.release(); rebuild = 0; pending = false; };
+      t.padHide = function () {};
+      t.onRoundEnd = function () { if (mode === 'zerog') { st.zEnd = true; } };
+      t.update = function (dt, now) {
+        if (pending) {
+          pending = false;
+          st.deco.build(st.kind === 'main' ? geo.vh : st.h / 2 + 28);
+          st.deco.items.forEach(function (it, i) { it.g = i % 3; it.st = 0; });
+        }
+        var items = st.deco.items, i, it;
+        if (!items.length) { return false; }
+        if (rebuild) {
+          if (!rebT0) { rebT0 = now; }
+          var u = clamp((now - rebT0) / 450, 0, 1), k = 1 - (1 - u) * (1 - u) * (1 - u);
+          for (i = 0; i < items.length; i++) { it = items[i]; it.dx = from[i][0] * (1 - k); it.dy = from[i][1] * (1 - k); it.rot = from[i][2] * (1 - k); st.deco.set(it); }
+          if (u >= 1) { st.deco.release(); rebuild = 0; return false; }
+          return true;
+        }
+        var busy = false, n = st.cnt;
+        for (i = 0; i < items.length; i++) {
+          it = items[i];
+          if (!it.born) { it.born = true; if (it.node.classList.contains('fxshape')) { it.node.classList.add('in'); } }
+          if (mode === 'earthquake') {
+            if (it.st === 0) {
+              var j = Math.min(3, 0.4 + n * 0.06), tilt = Math.min(10, n * 0.35) * it.sgn;
+              it.dx = st.running ? j * Math.sin(now * 0.045 + it.ang) : 0;
+              it.dy = st.running ? j * 0.6 * Math.sin(now * 0.057 + it.ang * 2) : 0;
+              it.rot = tilt;
+              if (n >= st.tFall[it.g]) { it.st = 1; it.vx = rnd(-50, 50); it.vy = 0; it.vr = rnd(-110, 110); it.bounce = 0; it.dx = 0; }
+              busy = busy || st.running;
+            }
+            if (it.st === 1) {
+              it.vy += 1900 * dt; it.dy += it.vy * dt; it.dx += it.vx * dt; it.rot += it.vr * dt;
+              var maxDy = st.deco.floor - (it.y + it.h) - it.pile;
+              if (it.dy >= maxDy) {
+                it.dy = maxDy;
+                if (it.bounce < 2 && it.vy > 160) { it.vy = -it.vy * 0.38; it.vr *= 0.5; it.bounce += 1; } else { it.st = 2; it.vy = 0; it.vx = 0; }
+              }
+              busy = true;
+            } else if (it.st === 2) {
+              it.rot += (it.end - it.rot) * Math.min(1, dt * 10);
+              if (Math.abs(it.end - it.rot) > 0.2) { busy = true; }
+            }
+          } else {
+            /* zero gravity: slow drift away while tapping, smooth return afterwards */
+            var tgt = st.running ? Math.min(150, n * 3.2) : 0, rate = st.running ? 0.8 : 0.28;
+            var cur = it.amp || 0;
+            cur += (tgt - cur) * (1 - Math.exp(-dt / rate));
+            if (!st.running && cur < 0.4) { cur = 0; }
+            it.amp = cur;
+            it.dx = Math.cos(it.ang) * cur + Math.sin(now * 0.0011 + it.ang) * cur * 0.12;
+            it.dy = Math.sin(it.ang) * cur + Math.cos(now * 0.0009 + it.ang) * cur * 0.12;
+            it.rot = cur * 0.28 * it.sgn;
+            if (cur > 0) { busy = true; }
+          }
+          st.deco.set(it);
+        }
+        if (mode === 'zerog' && !st.running && !busy) { st.deco.release(); return false; }
+        return busy;
+      };
+      return t;
+    }
+    function mkNone(st) { return themeBase(st); }
+    function mkEarthquake(st) { return decorTheme(st, 'earthquake'); }
+    function mkZerog(st) { return decorTheme(st, 'zerog'); }
+
+    function mkCrack(st) {
+      var t = themeBase(st), cracks = [], shards = [], shatT0 = 0, shat = false;
+      function ray(x, y, ang, segs) {
+        var pts = [[x, y]], i;
+        for (i = 0; i < segs; i++) { ang += rnd(-0.5, 0.5); x += Math.cos(ang) * rnd(14, 38); y += Math.sin(ang) * rnd(14, 38); pts.push([x, y]); }
+        return pts;
+      }
+      t.onTap = function (x, y, src, cps, count) {
+        var n = Math.round(rnd(5, 7)), rays = [], i;
+        for (i = 0; i < n; i++) {
+          var a = rnd(0, 6.283), r = ray(x, y, a, Math.round(rnd(3, 4)));
+          rays.push(r);
+          if (Math.random() < 0.5) { rays.push(ray(r[2][0], r[2][1], a + rnd(-1, 1), 2)); }
+        }
+        cracks.push({ rays: rays, t0: 0, die: 0, born: performance.now() });
+        if (cracks.length > 24) { for (i = 0; i < cracks.length; i++) { if (!cracks[i].die) { cracks[i].die = performance.now(); break; } } }
+      };
+      t.onRoundEnd = function () {
+        if (!cracks.length) { return; }
+        shat = true; shatT0 = 0; shards = [];
+        var cols = 4, rows = 6, cw = st.w / cols, rh = st.h / rows, i, j;
+        for (i = 0; i < cols; i++) {
+          for (j = 0; j < rows; j++) {
+            var x0 = i * cw, y0 = j * rh;
+            [[[0, 0], [1, 0], [0, 1]], [[1, 0], [1, 1], [0, 1]]].forEach(function (tri) {
+              var cx = x0 + cw * (tri[0][0] + tri[1][0] + tri[2][0]) / 3, cy = y0 + rh * (tri[0][1] + tri[1][1] + tri[2][1]) / 3;
+              shards.push({ pts: tri.map(function (v) { return [x0 + v[0] * cw - cx, y0 + v[1] * rh - cy]; }), x: cx, y: cy, vy: rnd(40, 140), vx: rnd(-30, 30), r: 0, vr: rnd(-90, 90) });
+            });
+          }
+        }
+      };
+      t.update = function (dt, now) {
+        var i;
+        for (i = cracks.length - 1; i >= 0; i--) {
+          var c = cracks[i];
+          if (c.die && now - c.die > 400) { cracks.splice(i, 1); }
+        }
+        if (shat) {
+          if (!shatT0) { shatT0 = now; }
+          for (i = 0; i < shards.length; i++) { var s = shards[i]; s.vy += 900 * dt; s.y += s.vy * dt; s.x += s.vx * dt; s.r += s.vr * dt; }
+          if (now - shatT0 > 460) { shat = false; shards = []; cracks = []; }
+        }
+        return shat;
+      };
+      t.draw = function (c, now) {
+        var i, j, k;
+        if (shat) {
+          var u = clamp((now - shatT0) / 460, 0, 1), a = 1 - u * u;
+          c.globalAlpha = 0.5 * a; c.fillStyle = '#FFFFFF'; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 1;
+          for (i = 0; i < shards.length; i++) {
+            var s = shards[i];
+            c.save(); c.translate(s.x, s.y); c.rotate(s.r * 0.01745);
+            c.beginPath(); c.moveTo(s.pts[0][0], s.pts[0][1]); c.lineTo(s.pts[1][0], s.pts[1][1]); c.lineTo(s.pts[2][0], s.pts[2][1]); c.closePath();
+            c.globalAlpha = 0.16 * a; c.fill(); c.globalAlpha = 0.55 * a; c.stroke();
+            c.restore();
+          }
+          c.globalAlpha = 1;
+          return;
+        }
+        for (k = 0; k < 2; k++) {
+          c.lineCap = 'round'; c.lineJoin = 'round';
+          c.lineWidth = k ? 1.2 : 2.6; c.strokeStyle = k ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.35)';
+          for (i = 0; i < cracks.length; i++) {
+            var cr = cracks[i];
+            c.globalAlpha = cr.die ? Math.max(0, 1 - (now - cr.die) / 400) : 1;
+            c.beginPath();
+            for (j = 0; j < cr.rays.length; j++) {
+              var r = cr.rays[j];
+              c.moveTo(r[0][0], r[0][1]);
+              for (var m = 1; m < r.length; m++) { c.lineTo(r[m][0], r[m][1]); }
+            }
+            c.stroke();
+          }
+        }
+        c.globalAlpha = 1;
+      };
+      t.padHide = function () { cracks = []; shards = []; shat = false; };
+      t.reset = t.padHide; t.destroy = t.padHide;
+      return t;
+    }
+
+    function mkBalloon(st) {
+      var t = themeBase(st), r = 0, target = 0, popT0 = 0, pop = false, ready = false;
+      function base() { return Math.min(st.w, st.h) * 0.16; }
+      function ensure() { if (!ready && st.w) { r = target = base(); ready = true; } }
+      t.onRoundStart = function () { r = 0; target = 0; pop = false; ready = false; ensure(); };
+      t.onTap = function () { ensure(); target = Math.min(Math.min(st.w, st.h) * 0.46, target + Math.min(st.w, st.h) * 0.0045); };
+      t.onRoundEnd = function () {
+        pop = true; popT0 = 0;
+        var cx = st.w / 2, cy = st.h / 2, now = performance.now();
+        for (var i = 0; i < 26; i++) {
+          var a = rnd(0, 6.283), sp = rnd(90, 260);
+          st.add({ k: 'spark', x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, t0: now, life: rnd(380, 560), s: rnd(2, 3.4), c: '#FFFFFF' });
+        }
+      };
+      t.update = function (dt, now) {
+        ensure();
+        if (pop) { if (!popT0) { popT0 = now; } if (now - popT0 > 160) { pop = false; r = 0; target = 0; } return pop; }
+        r += (target - r) * (1 - Math.exp(-dt / 0.08));
+        return Math.abs(target - r) > 0.3;
+      };
+      t.draw = function (c, now) {
+        if (!r || (!st.running && !pop)) { return; }
+        var cx = st.w / 2, cy = st.h / 2, a = pop ? 1 - clamp((now - popT0) / 160, 0, 1) : 1;
+        var k = pop ? 1 + (1 - a) * 0.2 : 1, ry = r * 1.12 * k, rx = r * k;
+        var g = c.createRadialGradient(cx - rx * 0.3, cy - ry * 0.35, rx * 0.1, cx, cy, ry);
+        g.addColorStop(0, 'rgba(255,255,255,0.42)'); g.addColorStop(1, 'rgba(255,255,255,0.16)');
+        c.globalAlpha = a; c.fillStyle = g;
+        c.beginPath(); c.ellipse(cx, cy, rx, ry, 0, 0, 6.2832); c.fill();
+        c.strokeStyle = 'rgba(255,255,255,0.7)'; c.lineWidth = 2.5; c.stroke();
+        if (!pop) {
+          c.fillStyle = 'rgba(255,255,255,0.6)';
+          c.beginPath(); c.moveTo(cx - 7, cy + ry + 9); c.lineTo(cx + 7, cy + ry + 9); c.lineTo(cx, cy + ry - 1); c.closePath(); c.fill();
+          c.beginPath(); c.moveTo(cx, cy + ry + 9); c.quadraticCurveTo(cx + 10, cy + ry + 26, cx - 4, cy + ry + 42); c.stroke();
+        }
+        c.globalAlpha = 1;
+      };
+      t.padHide = function () { r = 0; target = 0; pop = false; ready = false; };
+      t.reset = t.padHide; t.destroy = t.padHide;
+      return t;
+    }
+
+    function mkPaint(st) {
+      var t = themeBase(st), splats = [];
+      var PAL = ['#D62839', '#B5179E', '#0F7B6C', '#7209B7', '#C1440E', '#1565C0'];
+      t.onTap = function (x, y) {
+        var blobs = [], n = Math.round(rnd(5, 8)), R = rnd(14, 30), i;
+        for (i = 0; i < n; i++) { var a = rnd(0, 6.283), d = R * rnd(0.6, 1.3); blobs.push([Math.cos(a) * d, Math.sin(a) * d, R * rnd(0.25, 0.5)]); }
+        splats.push({ x: x, y: y, R: R, blobs: blobs, c: PAL[Math.floor(Math.random() * PAL.length)], die: 0 });
+        if (splats.length > 36) { for (i = 0; i < splats.length; i++) { if (!splats[i].die) { splats[i].die = performance.now(); break; } } }
+      };
+      function paint(c, now, ox, oy, scale) {
+        for (var i = 0; i < splats.length; i++) {
+          var s = splats[i];
+          c.globalAlpha = (s.die ? Math.max(0, 1 - (now - s.die) / 500) : 1) * 0.8 * scale;
+          c.fillStyle = s.c;
+          c.beginPath(); c.arc(ox + s.x, oy + s.y, s.R, 0, 6.2832); c.fill();
+          for (var j = 0; j < s.blobs.length; j++) { var b = s.blobs[j]; c.beginPath(); c.arc(ox + s.x + b[0], oy + s.y + b[1], b[2], 0, 6.2832); c.fill(); }
+        }
+        c.globalAlpha = 1;
+      }
+      t.update = function (dt, now) {
+        for (var i = splats.length - 1; i >= 0; i--) { if (splats[i].die && now - splats[i].die > 500) { splats.splice(i, 1); } }
+        var fading = false;
+        for (i = 0; i < splats.length; i++) { if (splats[i].die) { fading = true; } }
+        return fading;
+      };
+      t.draw = function (c, now) { paint(c, now, 0, 0, 1); };
+      /* At the end of the round the finished splats move to the background layer behind the page, until Play again. */
+      t.onRoundEnd = function () {
+        if (st.kind !== 'main' || !splats.length) { return; }
+        var bc = backC.getContext('2d');
+        backC.width = Math.round(geo.vw * geo.dpr); backC.height = Math.round(geo.vh * geo.dpr);
+        backC.style.width = geo.vw + 'px'; backC.style.height = geo.vh + 'px';
+        bc.setTransform(geo.dpr, 0, 0, geo.dpr, 0, 0);
+        bc.clearRect(0, 0, geo.vw, geo.vh);
+        paint(bc, performance.now(), st.ox, st.oy, 0.8);
+        backC.hidden = false;
+      };
+      t.padHide = function () { splats = []; };
+      t.reset = function () { splats = []; backC.hidden = true; backC.width = 1; backC.height = 1; };
+      t.destroy = t.reset;
+      return t;
+    }
+
+    function mkLightning(st) {
+      var t = themeBase(st), arcs = [], prev = null;
+      t.onRoundStart = function () { prev = null; arcs = []; };
+      t.onTap = function (x, y) {
+        if (prev) {
+          var dx = x - prev.x, dy = y - prev.y, dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist > 18 && dist < Math.max(st.w, st.h) * 0.9) {
+            var pts = [[prev.x, prev.y]], n = 8, nx = -dy / dist, ny = dx / dist;
+            for (var i = 1; i < n; i++) { var o = rnd(-1, 1) * Math.min(26, dist * 0.18); pts.push([prev.x + dx * i / n + nx * o, prev.y + dy * i / n + ny * o]); }
+            pts.push([x, y]);
+            arcs.push({ pts: pts, t0: performance.now() });
+            if (arcs.length > 6) { arcs.shift(); }
+          }
+        }
+        prev = { x: x, y: y };
+      };
+      t.update = function (dt, now) {
+        for (var i = arcs.length - 1; i >= 0; i--) { if (now - arcs[i].t0 > 400) { arcs.splice(i, 1); } }
+        return arcs.length > 0;
+      };
+      t.draw = function (c, now) {
+        for (var k = 0; k < 2; k++) {
+          c.lineJoin = 'round'; c.lineCap = 'round';
+          c.lineWidth = k ? 1.6 : 6; c.strokeStyle = k ? '#FFFFFF' : 'rgba(180,210,255,0.3)';
+          for (var i = 0; i < arcs.length; i++) {
+            var u = (now - arcs[i].t0) / 400;
+            c.globalAlpha = Math.max(0, 1 - u * u) * (k ? 0.95 : 0.8);
+            c.beginPath();
+            c.moveTo(arcs[i].pts[0][0], arcs[i].pts[0][1]);
+            for (var j = 1; j < arcs[i].pts.length; j++) { c.lineTo(arcs[i].pts[j][0], arcs[i].pts[j][1]); }
+            c.stroke();
+          }
+        }
+        c.globalAlpha = 1;
+      };
+      t.padHide = function () { arcs = []; };
+      t.reset = t.padHide; t.destroy = t.padHide;
+      return t;
+    }
+
+    function mkGlitch(st) {
+      var t = themeBase(st), root = document.documentElement, sc = 0;
+      t.onRoundStart = function () { if (st.kind === 'main') { root.classList.add('fx-glitch'); } sc = 0; };
+      t.update = function (dt) {
+        /* static CRT lines and colour fringe; the strength follows taps per second slowly (the same smoothing as the heat meter) */
+        var s = clamp(st.heatS, 0, 1);
+        if (st.kind === 'main') {
+          var v = (0.3 + s * 0.6).toFixed(3);
+          if (st.running && st.lastScan !== v) { st.lastScan = v; scanEl.style.opacity = v; root.style.setProperty('--fx-fringe', (1.2 + s * 1.6).toFixed(2) + 'px'); }
+        } else {
+          var pl = $('fxPrevText'); if (pl) { pl.style.textShadow = '-1.5px 0 rgba(255,0,80,0.55), 1.5px 0 rgba(0,190,255,0.55)'; }
+        }
+        return st.running && s > 0;
+      };
+      function clear() {
+        if (st.kind === 'main') { root.classList.remove('fx-glitch'); root.style.removeProperty('--fx-fringe'); scanEl.style.opacity = '0'; }
+        else { var pl = $('fxPrevText'); if (pl) { pl.style.textShadow = ''; } }
+      }
+      t.padHide = function () { if (st.kind === 'main') { scanEl.style.opacity = '0'; } };
+      t.reset = clear; t.destroy = clear;
+      if (st.kind !== 'main') { t.init = function () { var pl = $('fxPrevText'); if (pl) { pl.style.textShadow = '-1.5px 0 rgba(255,0,80,0.55), 1.5px 0 rgba(0,190,255,0.55)'; } }; }
+      return t;
+    }
+
+    function mkEmoji(st) {
+      var t = themeBase(st), items = [], acc = 0;
+      t.onRoundStart = function () { items = []; acc = 0; };
+      t.update = function (dt, now) {
+        var cap = geo.phone ? 18 : 30, i;
+        if (st.running) {
+          acc += dt * (1.2 + st.cpsS * 1.0);
+          while (acc >= 1 && items.length < cap) { acc -= 1; items.push({ x: rnd(0.04, 0.96) * st.w, y: -30, vy: rnd(120, 260), ph: rnd(0, 6.28), sw: rnd(8, 24), s: rnd(22, 36), r: rnd(-0.4, 0.4) }); }
+          if (acc > 1) { acc = 1; }
+        }
+        for (i = items.length - 1; i >= 0; i--) { var it = items[i]; it.y += it.vy * dt; if (it.y > st.h + 40) { items.splice(i, 1); } }
+        return items.length > 0;
+      };
+      t.draw = function (c, now) {
+        var em = st.cfgNow.emoji;
+        c.textAlign = 'center'; c.textBaseline = 'middle';
+        for (var i = 0; i < items.length; i++) {
+          var it = items[i];
+          c.font = Math.round(it.s) + 'px sans-serif';
+          c.save(); c.translate(it.x + Math.sin(now / 1000 * 2 + it.ph) * it.sw, it.y); c.rotate(it.r); c.fillText(em, 0, 0); c.restore();
+        }
+        c.textBaseline = 'alphabetic';
+      };
+      t.padHide = function () { items = []; };
+      t.reset = t.padHide; t.destroy = t.padHide;
+      return t;
+    }
+    var THEMES = { none: mkNone, earthquake: mkEarthquake, crack: mkCrack, balloon: mkBalloon, paint: mkPaint, lightning: mkLightning, zerog: mkZerog, glitch: mkGlitch, emoji: mkEmoji };
+
+    /* ---- Shared loop ---- */
+    var main = makeStage('main', padC, padvis);
+    var prevSt = null;
+    var queue = [];
+    var panelOpen = false;
+
+    function doMeasure() {
+      needMeasure = false;
+      geo.vw = window.innerWidth; geo.vh = window.innerHeight;
+      geo.phone = Math.min(geo.vw, geo.vh) < 600;
+      geo.dpr = Math.min(window.devicePixelRatio || 1, geo.phone ? 1.5 : 2);
+      geo.low = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 2;
+      var cs = getComputedStyle(document.documentElement);
+      colors.signal = (cs.getPropertyValue('--signal') || '').trim() || '#FF5A2B';
+      fontCache = getComputedStyle(countEl).fontFamily || 'sans-serif';
+      if (pad.hidden) { return; }
+      var r = pad.getBoundingClientRect();
+      if (r.width && r.height) { main.size(r.width, r.height, r.left, r.top); }
+    }
+    function measurePrev() {
+      if (!prevSt) { return; }
+      var box = $('fxPrev'), r = box.getBoundingClientRect();
+      if (r.width && r.height) { prevSt.size(r.width, r.height, r.left, r.top); }
+    }
+    function wake() {
+      if (!raf && !document.hidden) { raf = requestAnimationFrame(frame); }
+    }
+    function legacyRipple(x, y) {
+      if (reduce) { return; }
+      var box = pad.getBoundingClientRect();
+      var r = document.createElement('span');
+      r.className = 'ripple';
+      r.style.left = (x == null ? box.width / 2 : x - box.left) + 'px';
+      r.style.top = (y == null ? box.height / 2 : y - box.top) + 'px';
+      r.addEventListener('animationend', function () { if (r.parentNode) { r.parentNode.removeChild(r); } });
+      padvis.appendChild(r);
+      ripples.push(r);
+      if (ripples.length > 10) {
+        var old = ripples.shift();
+        if (old.parentNode) { old.parentNode.removeChild(old); }
+      }
+    }
+    function reactions(cps, now) {
+      var c = cfg();
+      if (c.sound && !portalMuted()) { tickSound(cps, now); }
+      if (c.vib) { buzz(now); }
+    }
+    function frame(ts) {
+      raf = 0;
+      var now = performance.now();
+      var raw = lastTs ? ts - lastTs : 16.7;
+      var dt = Math.min(0.05, raw / 1000);
+      lastTs = ts;
+      if (needMeasure) { doMeasure(); }
+      var i, q;
+      main.refresh();
+      /* taps queued since the last frame: effects, sound and vibration happen here, after the tap was counted */
+      for (i = 0; i < queue.length; i++) {
+        q = queue[i];
+        if (q.prev) { continue; }
+        if (state === 'idle' && !main.running) { continue; }
+        if (main.lvl === 0) { legacyRipple(q.x, q.y); } else if (main.w) { main.tap(q.x, q.y, q.src, q.t); }
+        else { main.tapT.push(q.t); }
+        reactions(main.cpsAt(now), q.t);
+      }
+      queue.length = 0;
+      var busy = false;
+      if (main.w && !pad.hidden || main.P.length || main.deco.items.length || main.running) { busy = main.step(dt, now); }
+      if (prevSt && panelOpen) {
+        prevSt.refresh();
+        if (prevSt.pq && prevSt.pq.length) {
+          for (i = 0; i < prevSt.pq.length; i++) { q = prevSt.pq[i]; if (prevSt.lvl) { prevSt.tap(q.x, q.y, 'touch', q.t); } prevSt.cnt = prevSt.cnt; reactions(prevSt.cpsAt(now), q.t); }
+          prevSt.pq.length = 0;
+          prevSt.idleT = now;
+        }
+        if (prevSt.running && now - prevSt.idleT > 3500) { prevSt.end(); prevSt.reset(); prevSt.deco.release(); prevSt.useThemeNow(); }
+        if (prevSt.step(dt, now)) { busy = true; }
+        if (prevSt.running) { busy = true; }
+      }
+      /* quality governor: slow frames while a round runs step the level down (never back up until the player picks a level) */
+      if (main.running && main.lvl > 0) {
+        if (gov.skip > 0) { gov.skip -= 1; }
+        else {
+          gov.frames.push(raw);
+          if (gov.frames.length >= 30) {
+            var sum = 0; for (i = 0; i < gov.frames.length; i++) { sum += gov.frames[i]; }
+            gov.frames = [];
+            if (sum / 30 > 20) { stepDown(); }
+          }
+        }
+      }
+      if (busy) { raf = requestAnimationFrame(frame); } else { lastTs = 0; }
+    }
+    function stepDown() {
+      var cur = levelIdx();
+      if (cur <= 0) { return; }
+      gov.cap = cur - 1;
+      main.refresh();
+      main.P.length = 0;
+      if (main.theme && main.lvl < 2) { main.theme.padHide(); main.theme.reset(); main.useTheme('none'); }
+      main.writeLook(0, 0, 0, 1, 1);
+      if (!gov.noted) {
+        gov.noted = true;
+        govEl.textContent = 'Effects eased down to keep taps smooth';
+        govEl.hidden = false;
+      }
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = 0; } lastTs = 0; gov.frames = []; }
+      else { gov.skip = 5; if (main.running || main.P.length || (prevSt && panelOpen)) { wake(); } }
+    });
+    window.addEventListener('resize', function () {
+      needMeasure = true;
+      if (panelOpen) { measurePrev(); }
+      if (main.running || main.deco.items.length) { wake(); }
+    });
+
+    /* ---- Round hooks (called from the game; none of them changes state the game reads) ---- */
+    var newUnlocks = [];
+    function applyLook() {
+      var c = cfg();
+      pad.setAttribute('data-skin', chosen(SKINS, c.skin).id);
+      var pv = $('fxPrev'); if (pv) { pv.setAttribute('data-skin', chosen(SKINS, c.skin).id); }
+    }
+    function roundStart(sec) {
+      needMeasure = true;
+      gov.frames = []; gov.skip = 5;
+      govEl.hidden = true;
+      main.refresh();
+      main.begin(sec);
+      wake();
+    }
+    function tap(x, y, src, t) {
+      /* queue only: no layout reads, no drawing here */
+      queue.push({ x: x, y: y, src: src, t: t });
+      if (cfg().sound && !portalMuted()) { ensureAudio(); }
+      wake();
+    }
+    function roundEnd(res) {
+      main.end();
+      var s = store.unlock;
+      s.taps = Math.min(1e9, s.taps + res.taps);
+      if (res.isBest && !res.custom) { s.bests += 1; }
+      newUnlocks = ALL_UNLOCKS.filter(function (u) { return unlocked(u) && s.seen.indexOf(u.id) < 0; });
+      newUnlocks.forEach(function (u) { s.seen.push(u.id); });
+      wake();
+    }
+    function takeUnlock() {
+      if (!newUnlocks.length) { return ''; }
+      var txt = 'Unlocked: ' + newUnlocks.map(function (u) { return u.name + (SKINS.indexOf(u) > -1 ? ' skin' : RIPPLES.indexOf(u) > -1 ? ' ripple' : ' trail'); }).join(', ') + '. Pick it in Effects.';
+      newUnlocks = [];
+      return txt;
+    }
+    function shown() {
+      main.padHide();
+      wake();
+    }
+    function reset() {
+      queue.length = 0;
+      main.refresh();
+      var hadDeco = main.deco.items.length > 0;
+      main.reset();
+      if (hadDeco) { wake(); }
+      else { if (raf && !(prevSt && panelOpen)) { cancelAnimationFrame(raf); raf = 0; lastTs = 0; } }
+      newUnlocks = [];
+      needMeasure = true;
+    }
+
+    /* ---- Settings panel ---- */
+    var panel = $('fxPanel'), fxCard = $('fxCard'), fxBtn = $('fxBtn'), opener = null, fxPushed = false, fxSkip = false;
+    function fillSelect(sel, list, cur) {
+      sel.textContent = '';
+      list.forEach(function (u) {
+        var o = document.createElement('option');
+        o.value = u.id;
+        var ok = unlocked(u);
+        o.textContent = u.name + (ok ? '' : ' (locked, ' + lockText(u) + ')');
+        o.disabled = !ok;
+        sel.appendChild(o);
+      });
+      sel.value = chosen(list, cur).id;
+    }
+    function renderPanel() {
+      var c = cfg();
+      [].forEach.call(document.querySelectorAll('input[name="fxlevel"]'), function (r) { r.checked = r.value === c.level; });
+      var ts = $('fxTheme');
+      if (!ts.options.length) {
+        THEME_IDS.forEach(function (id) { var o = document.createElement('option'); o.value = id; o.textContent = THEME_NAME[id]; ts.appendChild(o); });
+        var eb = $('fxEmoji');
+        EMOJIS.forEach(function (em, i) {
+          var l = document.createElement('label'), r = document.createElement('input');
+          r.type = 'radio'; r.name = 'fxemoji'; r.value = em; r.setAttribute('aria-label', 'Emoji ' + (i + 1));
+          var sp = document.createElement('span'); sp.textContent = em; l.appendChild(r); l.appendChild(sp); eb.appendChild(l);
+        });
+      }
+      ts.value = c.theme;
+      $('fxEmojiBox').hidden = c.theme !== 'emoji';
+      [].forEach.call(document.querySelectorAll('input[name="fxemoji"]'), function (r) { r.checked = r.value === c.emoji; });
+      $('fxHeat').checked = c.heat; $('fxLines').checked = c.lines; $('fxShake').checked = c.shake; $('fxSound').checked = c.sound; $('fxVib').checked = c.vib;
+      fillSelect($('fxSkin'), SKINS, c.skin);
+      fillSelect($('fxRipple'), RIPPLES, c.ripple);
+      fillSelect($('fxTrail'), TRAILS, c.trail);
+      $('fxNote').hidden = !reduced();
+      $('fxGovNote').hidden = !gov.noted || gov.cap >= LEVELS.indexOf(c.level);
+      var an = $('fxAudioNote');
+      an.hidden = !(c.sound && portalMuted());
+      an.textContent = 'Sound is off because the site you are playing on has muted game audio.';
+      applyLook();
+    }
+    function focusables() {
+      return [].filter.call(fxCard.querySelectorAll('button, input, select, [tabindex="0"]'), function (el) { return !el.disabled && !el.closest('[hidden]') && el.offsetParent !== null; });
+    }
+    function openPanel() {
+      if (panelOpen || state === 'running' || state === 'done' || boardOpen) { return; }
+      panelOpen = true;
+      opener = document.activeElement;
+      renderPanel();
+      panel.hidden = false;
+      try { history.pushState({ tapSprint: 'fx' }, ''); fxPushed = true; } catch (e) { fxPushed = false; }
+      if (!prevSt) { prevSt = makeStage('prev', $('fxPrevC'), $('fxPrevVis')); prevSt.pq = []; prevSt.idleT = 0; prevSt.useThemeNow = function () { prevSt.refresh(); prevSt.useTheme(prevSt.lvl >= 2 ? prevSt.cfgNow.theme : 'none'); }; }
+      doMeasure();
+      measurePrev();
+      prevSt.refresh();
+      prevSt.running = false;
+      try { $('fxTitle').focus({ preventScroll: true }); } catch (e) {}
+    }
+    function closeUi() {
+      if (!panelOpen) { return; }
+      panelOpen = false;
+      panel.hidden = true;
+      if (prevSt) { prevSt.end(); prevSt.reset(); prevSt.deco.release(); if (prevSt.theme) { prevSt.theme.destroy(); prevSt.theme = null; prevSt.themeId = ''; } prevSt.pq.length = 0; }
+      var t = opener && document.contains(opener) && !opener.disabled ? opener : fxBtn;
+      try { t.focus({ preventScroll: true }); } catch (e) {}
+      opener = null;
+    }
+    function closePanel() {
+      if (!panelOpen) { return; }
+      if (fxPushed) { fxPushed = false; fxSkip = true; try { history.back(); } catch (e) { fxSkip = false; } }
+      closeUi();
+    }
+    window.addEventListener('popstate', function () {
+      if (fxSkip) { fxSkip = false; return; }
+      if (fxPushed) { fxPushed = false; closeUi(); }
+    });
+    function previewReady() {
+      if (!prevSt.theme || prevSt.themeId !== (prevSt.lvl >= 2 ? prevSt.cfgNow.theme : 'none')) { prevSt.useThemeNow(); }
+      if (!prevSt.running) { prevSt.begin(10); prevSt.tFall = [3, 6, 9]; }
+    }
+    function previewTap(x, y) {
+      prevSt.refresh();
+      previewReady();
+      prevSt.pq.push({ x: x, y: y, t: performance.now() });
+      if (cfg().sound && !portalMuted()) { ensureAudio(); }
+      wake();
+    }
+    $('fxPrev').addEventListener('pointerdown', function (e) { e.preventDefault(); previewTap(e.clientX, e.clientY); });
+    $('fxPrev').addEventListener('keydown', function (e) {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) { var r = $('fxPrev').getBoundingClientRect(); previewTap(r.left + r.width / 2, r.top + r.height / 2); } }
+    });
+    function changed() { renderPanel(); if (prevSt) { prevSt.end(); prevSt.reset(); prevSt.deco.release(); prevSt.refresh(); prevSt.useThemeNow(); } }
+    /* click, not change: picking the level that is already on must still lift an automatic easing */
+    [].forEach.call(document.querySelectorAll('input[name="fxlevel"]'), function (r) {
+      r.addEventListener('click', function () { if (r.checked) { gov.cap = 2; gov.noted = false; setCfg('level', r.value); changed(); } });
+    });
+    $('fxTheme').addEventListener('change', function () { setCfg('theme', this.value); changed(); });
+    $('fxEmoji').addEventListener('change', function (e) { if (e.target && e.target.name === 'fxemoji') { setCfg('emoji', e.target.value); renderPanel(); } });
+    [['fxHeat', 'heat'], ['fxLines', 'lines'], ['fxShake', 'shake'], ['fxSound', 'sound'], ['fxVib', 'vib']].forEach(function (p) {
+      $(p[0]).addEventListener('change', function () { setCfg(p[1], this.checked); renderPanel(); });
+    });
+    [['fxSkin', 'skin'], ['fxRipple', 'ripple'], ['fxTrail', 'trail']].forEach(function (p) {
+      $(p[0]).addEventListener('change', function () { setCfg(p[1], this.value); renderPanel(); });
+    });
+    $('fxClose').addEventListener('click', closePanel);
+    panel.addEventListener('pointerdown', function (e) { if (e.target === panel) { closePanel(); } });
+    panel.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closePanel(); return; }
+      if (e.key !== 'Tab') { return; }
+      var f = focusables();
+      if (!f.length) { return; }
+      var first = f[0], lastEl = f[f.length - 1], ae = document.activeElement;
+      if (ae === $('fxTitle') || !fxCard.contains(ae)) { e.preventDefault(); (e.shiftKey ? lastEl : first).focus(); return; }
+      if (e.shiftKey && ae === first) { e.preventDefault(); lastEl.focus(); }
+      else if (!e.shiftKey && ae === lastEl) { e.preventDefault(); first.focus(); }
+    });
+    fxBtn.addEventListener('click', openPanel);
+    document.addEventListener('focusin', function (e) {
+      if (panelOpen && !fxCard.contains(e.target)) { try { $('fxTitle').focus({ preventScroll: true }); } catch (err) {} }
+    });
+
+    applyLook();
+    return {
+      clean: cleanFx, mergeUnlock: mergeUnlock, applyLook: applyLook,
+      tap: tap, roundStart: roundStart, roundEnd: roundEnd, shown: shown, reset: reset,
+      takeUnlock: takeUnlock, panelOpen: function () { return panelOpen; }, level: function () { return levelIdx(); },
+      invalidate: function () { needMeasure = true; }
+    };
+  })();
+
   /* ---- Input ---- */
-  function feedback(x, y) {
-    if (reduce) { return; }
-    if (countEl.animate) {
-      countEl.animate([{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 90, easing: 'ease-out' });
-    }
-    var box = pad.getBoundingClientRect();
-    var r = document.createElement('span');
-    r.className = 'ripple';
-    r.style.left = (x == null ? box.width / 2 : x - box.left) + 'px';
-    r.style.top = (y == null ? box.height / 2 : y - box.top) + 'px';
-    r.addEventListener('animationend', function () { if (r.parentNode) { r.parentNode.removeChild(r); } });
-    pad.appendChild(r);
-    ripples.push(r);
-    if (ripples.length > 10) {
-      var old = ripples.shift();
-      if (old.parentNode) { old.parentNode.removeChild(old); }
-    }
+  /* Only a cheap count pulse happens here. Everything else (ripples, particles, sound) is queued by FX.tap and drawn in its own frame. */
+  function feedback() {
+    if (reduce || !countEl.animate) { return; }
+    countEl.animate([{ transform: 'scale(1.06)' }, { transform: 'scale(1)' }], { duration: 90, easing: 'ease-out' });
   }
 
   function tap(x, y, src) {
-    if (boardOpen) { return; }
+    if (boardOpen || FX.panelOpen()) { return; }
     var now = performance.now();
     if (state === 'idle') { begin(now); }
     if (state !== 'running') { return; }
@@ -1919,7 +3109,8 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     buckets[i] += 1;
     taps += 1;
     countEl.textContent = String(taps);
-    feedback(x, y);
+    feedback();
+    FX.tap(x, y, src, now);
   }
 
   /* Mouse: left and right buttons both count. A second button pressed while the first is
@@ -1954,7 +3145,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     if (e.repeat) { return; }
     if (e.key !== ' ' && e.key !== 'Spacebar' && e.key !== 'Enter') { return; }
     if (e.target && e.target.closest && e.target.closest('button, input, textarea, select, a')) { return; }
-    if (boardOpen) { return; }
+    if (boardOpen || FX.panelOpen()) { return; }
     if (state === 'result') {
       /* Focus fell to the page: Space or Enter does the one obvious thing, once the post-round lock is over. */
       e.preventDefault();
@@ -2043,6 +3234,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
 
   /* ---- Boot ---- */
   load();
+  FX.applyLook();
   if (!store.pid) { store.pid = newPid(); save(); }
   platformReady = detectPlatformName();
   resetToIdle();
@@ -2057,6 +3249,7 @@ window.TAP_SPRINT_CONFIG = { leaderboardUrl: '' };
     settle(Promise.resolve(g.game.loadData()).then(function (s) {
       if (!s) { return; }
       merge(JSON.parse(s));
+      FX.applyLook();
       if (state === 'idle' && !boardOpen) { resetToIdle(); } else { renderBest(); }
     }));
   });
