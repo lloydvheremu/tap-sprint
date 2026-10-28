@@ -35,7 +35,21 @@ A **new best** on a preset round (including the first score on each new board, s
 
 The call to action pulses gently: the idle "Tap anywhere to start" hint, and the "Play again" label once its lock ends (not while the name field has focus). It is an opacity fade between 100 and 70 percent about once a second, so it never flashes. With reduced motion it is underlined instead.
 
-Tests: `npm i` then `npm test` runs a Playwright (Chrome) suite against a temporary local server. It covers the flows above, the input methods, the keyboard-only path and a sweep of screen sizes. Set `SHOTS_DIR` to save screenshots.
+## Effects (optional, cosmetic)
+
+The **Effects** button (start and result screens, not during a round) opens a panel. Effects never change the score, the input method or the leaderboard; they are not sent to the server.
+
+- **Level:** Off, Light (default: jelly wobble and tap ripples) or Full (everything chosen below). With reduced motion on, visuals start Off and the panel says so; you can still switch them on.
+- **Theme (Full only, one at a time):** None, Earthquake, Glass crack, Balloon, Paint splatter, Lightning, Zero gravity, Retro glitch, Emoji rain (8 emoji to pick from).
+- **Extras:** heat meter, speed lines and screen shake (Full only), sound and vibration (any level, both off by default).
+- **Try it:** a preview strip in the panel shows your settings (and plays sound or vibrates if those are on) when you tap it.
+- **Cosmetics that unlock:** tap-area skins, ripple colours and trails unlock from lifetime taps or personal bests (the panel shows what is left). Themes and effects are all available from the start. A quiet "Unlocked" line appears on the result card.
+- **Safety:** no flashing (whole-screen brightness never changes quickly, eased over 300 ms or more), effect layers never take clicks, nothing is drawn over the controls, and everything is cleared at Play again. A quality governor steps Full to Light to Off if frames stay slow, shows a small note once, and does not step back up until you pick a level again. Hidden tabs pause everything.
+- **How it stays out of the way:** a tap is counted and timestamped first; effects are queued and drawn from one animation-frame loop that stops when nothing is moving. No layout reads happen in the tap handler.
+- **Sound and portals:** sound is generated in the browser (no files) and only starts after a tap. If the page runs on YouTube Playables it follows `ytgame.system.isAudioEnabled()` and `onAudioEnabledChange`; if the CrazyGames SDK is present it follows its `muteAudio` setting.
+- **Saving:** settings and unlock progress are in the same save as scores (browser and the Playables cloud save). Saves from before this feature, or damaged ones, fall back to the defaults field by field.
+
+Tests: `npm i` then `npm test` runs a Playwright (Chrome) suite against a temporary local server (it takes several minutes). It covers the flows above, the input methods, the keyboard-only path, every effect theme (counting, hit-testing, cleanup, brightness, timer accuracy on a fake clock) and a sweep of screen sizes. Set `SHOTS_DIR` to save screenshots.
 
 ## Input methods and the leaderboard filter
 
